@@ -106,7 +106,6 @@ Week-3 decision log. Implementation copies the **Pick** column.
 | Traces | CSV; JSONL; Parquet | Parquet | Parity queries; 8192 on disk |
 | UI | TUI; globe; static HTML tables | Static B&W `report.html`, tables only | Operator artifact, not a renderer |
 | Language | C++; Python; Rust | Rust workspace, 8 crates, DAG in §6 | Types + determinism |
-| ID newtypes | `type GpuId = u32`; `Id<K>` phantom; `id!` macro; one struct per ID | **One `struct` per ID**, repeated derives. No aliases. | Mixing `GpuId`/`LinkId` is a real bug. Aliases drop that. Macro/`Id<K>` save lines, hide the type in grep/review. Verbosity is the tradeoff. |
 | Concurrency | rayon in hot path; none | None in sim/ctrl hot path | Determinism |
 | Seed default | 0; 1; random | 1 | Replay identity |
 | Cross-rail | Forbidden; via spine; via PXN | Via spine (`allow_cross_rail=true`) | Shared spines exist; PXN is N6 |
@@ -598,8 +597,6 @@ pub struct SimTime {
 ```
 
 `GpuId = n * R + r`. `NicId` equals `GpuId`. TOML `id` **is** `JobId`; never reassigned.
-
-Repeated `#[derive] + struct X(pub uN)` is intentional (§5 ID newtypes). Do not collapse to aliases.
 
 ### 9.2 Enums
 
