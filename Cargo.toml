@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/fabric-types",
+    "crates/fabric-sim",
+    "crates/fabric-te",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.78"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+clap = { version = "=4.5.23", features = ["derive"] }
+fabric-types = { path = "crates/fabric-types" }
+fabric-sim = { path = "crates/fabric-sim" }

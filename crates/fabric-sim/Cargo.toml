@@ -1,0 +1,10 @@
+[package]
+name = "fabric-sim"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Discrete-event FEL and sim clock for fabric-te"
+
+[dependencies]
+fabric-types.workspace = true

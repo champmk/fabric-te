@@ -1,0 +1,15 @@
+[package]
+name = "fabric-te"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "CLI for fabric-te (stub in PR1)"
+
+[[bin]]
+name = "fabric-te"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+fabric-types.workspace = true
