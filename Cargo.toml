@@ -4,6 +4,7 @@ members = [
     "crates/fabric-types",
     "crates/fabric-sim",
     "crates/fabric-topo",
+    "crates/fabric-model",
     "crates/fabric-te",
 ]
 
@@ -20,3 +21,4 @@ toml = "=0.5.11"
 fabric-types = { path = "crates/fabric-types" }
 fabric-sim = { path = "crates/fabric-sim" }
 fabric-topo = { path = "crates/fabric-topo" }
+fabric-model = { path = "crates/fabric-model" }
