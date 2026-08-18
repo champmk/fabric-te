@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fabric-te Design Lock v0.1</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body { font-family: Georgia, "Times New Roman", Times, serif; font-size: 15px; line-height: 1.5; }
+main { max-width: 820px; margin: 0 auto; padding: 40px 28px 80px; }
+header { border-bottom: 2px solid #000; padding-bottom: 14px; margin-bottom: 24px; }
+h1 { font-size: 26px; font-weight: normal; margin: 0 0 8px; }
+.kicker { font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 8px; }
+h2 { font-size: 18px; font-weight: normal; border-top: 1px solid #000; padding-top: 18px; margin: 32px 0 10px; }
+h3 { font-size: 15px; margin: 20px 0 8px; }
+p { margin: 0 0 10px; }
+ul, ol { margin: 0 0 12px; padding-left: 22px; }
+li { margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+th, td { border: 1px solid #000; padding: 5px 6px; vertical-align: top; text-align: left; }
+th { font-weight: bold; }
+code, pre { font-family: Consolas, "Courier New", monospace; font-size: 12.5px; }
+pre { border: 1px solid #000; padding: 10px 12px; overflow-x: auto; background: #fff; }
+.figure { margin: 16px 0 8px; }
+.figure svg { width: 100%; height: auto; display: block; }
+.math { font-style: italic; }
+.toc { border: 1px solid #000; padding: 12px 16px; margin: 16px 0 24px; font-size: 14px; }
+.toc a { color: #000; text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.toc ol { margin: 0; }
+footer { border-top: 2px solid #000; margin-top: 40px; padding-top: 10px; font-family: Arial, sans-serif; font-size: 11px; }
+nav.toc-top { font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 12px; }
+@media print {
+  main { max-width: none; padding: 0; }
+  h2 { break-before: auto; }
+  table, pre, .figure { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">Design lock · v0.1 · 2026-08-17 · Champ-Pacifique Mukiza</p>
+<h1>fabric-te</h1>
+<p>Flow-level DES and joint placement / path admission for a simulated GPU-training fabric. Week 1–3 lock. Implementation is transcription. Terrestrial datacenter only.</p>
+</header>
+<nav class="toc"><p><strong>Contents</strong></p><ol><li><a href="#1-title-metadata">1. Title &amp; Metadata</a></li><li><a href="#2-overview">2. Overview</a></li><li><a href="#3-background-motivation">3. Background &amp; Motivation</a></li><li><a href="#4-goals-non-goals">4. Goals &amp; Non-Goals</a></li><li><a href="#5-key-decisions">5. Key Decisions</a></li><li><a href="#6-system-architecture">6. System architecture</a></li><li><a href="#7-topology-model-and-math">7. Topology model and math</a></li><li><a href="#8-workload-and-collective-math">8. Workload and collective math</a></li><li><a href="#9-data-model">9. Data model</a></li><li><a href="#10-discrete-event-runtime">10. Discrete-event runtime</a></li><li><a href="#11-residual-accounting-and-rate-allocation">11. Residual accounting and rate allocation</a></li><li><a href="#12-naive-controller">12. Naive controller</a></li><li><a href="#13-joint-controller">13. Joint controller</a></li><li><a href="#14-failure-drain-epochs">14. Failure, drain, epochs</a></li><li><a href="#15-planner-what-if">15. Planner / what-if</a></li><li><a href="#16-operator-ux">16. Operator UX</a></li><li><a href="#17-metrics-and-figures-of-merit">17. Metrics and figures of merit</a></li><li><a href="#18-verification-and-testing">18. Verification and testing</a></li><li><a href="#19-repo-architecture-expected-size-fixtures-ci">19. Repo architecture, expected size, fixtures, CI</a></li><li><a href="#20-development-process">20. Development process</a></li><li><a href="#21-scale-performance-ram-budget">21. Scale, performance, RAM budget</a></li><li><a href="#22-edge-cases">22. Edge cases</a></li><li><a href="#23-alternatives-considered">23. Alternatives considered</a></li><li><a href="#24-threat-model-security-privacy">24. Threat model / security / privacy</a></li><li><a href="#25-observability">25. Observability</a></li><li><a href="#26-risks-and-mitigations">26. Risks and mitigations</a></li><li><a href="#27-open-questions">27. Open Questions</a></li><li><a href="#28-references">28. References</a></li><li><a href="#29-key-decisions-picks-recap">29. Key Decisions (picks recap)</a></li><li><a href="#30-pr-plan">30. PR Plan</a></li></ol></nav>
+<h1>fabric-te Design Lock (v1)</h1>
+<h2 id="1-title-metadata">1. Title &amp; Metadata</h2>
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Title</td><td>fabric-te: flow-level DES and joint placement / path admission for a simulated GPU-training fabric</td></tr>
+<tr><td>Author</td><td>Champ-Pacifique Mukiza</td></tr>
+<tr><td>Date</td><td>2026-08-17</td></tr>
+<tr><td>Status</td><td>Draft</td></tr>
+<tr><td>Version</td><td>0.1</td></tr>
+<tr><td>Audience</td><td>Staff+ cluster-networking engineers</td></tr>
+<tr><td>Role of this document</td><td>Week-1–3 design lock. Source of truth. After freeze, implementation is transcription. Code may not invent topology, costing, admission, or CLI.</td></tr>
+</table>
+<p><strong>One-sentence scope.</strong> This is a terrestrial datacenter fabric controller (placement + TE + admission + failure + planner) on a flow-level discrete-event simulator. It is a portable fabric-control skill, not a space product.</p>
+<hr>
+<h2 id="2-overview">2. Overview</h2>
+<p>Training jobs miss SLOs on fabrics that still have free GPUs. The miss is structural: Ring AllReduce and pairwise AllToAll are barrier-synchronous, rail-aligned, and last-flow-limited. Packing GPUs and spraying ECMP ignores leftover CIR on rails, leaf-spine uplinks, and the incast that appears at step boundaries.</p>
+<p><strong>fabric-te</strong> is a single-binary, single-threaded, deterministic flow-level DES plus two controllers (naive, joint) and a planner that is the same engine under a capacity delta. The joint controller enumerates a bounded set of rank-aligned GPU bindings, costs residual-aware k-shortest paths, water-fills rates, and admits the cheapest binding whose predicted collective time meets the job SLO on leftover CIR. Naive first-fit + hop-count ECMP is the baseline that is allowed to violate the network SLO. Failures swap an <code>Arc</code> graph through a 2PC epoch. Traces are Parquet. The operator artifact is tables, not a canvas.</p>
+<p>v1 target: laptop, 32 GB RAM, Ultra 9 class CPU. Daily size 256–512 GPUs. Showcase 2048. 8192 traces-on-disk only. No packets, no trainer, no RL, no OCS.</p>
+<hr>
+<h2 id="3-background-motivation">3. Background &amp; Motivation</h2>
+<p><strong>Industry.</strong> Isolation and late-row planning are leftover-CIR problems. Operators refuse jobs that fit on free GPUs when the rail or uplink is gone.</p>
+<p><strong>Technical.</strong> (1) Traffic is structured: a DP ring walks one rail; MoE AllToAll is a barrier-synchronous permutation. Poisson hides the hotspot. (2) Admission leftover is CIR: <code>r_e^avail = c_e(1-s) − Σ ρ_{j,e}</code>. (3) Spine down → reroute or kill; leaf/rail down → kill (single-homed); a delayed row is the same engine plus a capacity delta. Merit: hotspot-minutes and last-flow collective time, not mean util.</p>
+<hr>
+<h2 id="4-goals-non-goals">4. Goals &amp; Non-Goals</h2>
+<h3 id="4-1-goals">4.1 Goals</h3>
+<table>
+<tr><th>ID</th><th>Goal</th><th>Acceptance</th></tr>
+<tr><td>G1</td><td>Deterministic flow-level DES of a rail-optimized 2-tier Clos</td><td>Same seed + same inputs → byte-identical <code>report.json</code></td></tr>
+<tr><td>G2</td><td>Naive baseline: first-fit GPUs + hop-count ECMP</td><td>May violate network SLO; scan order and tie-break locked in §12</td></tr>
+<tr><td>G3</td><td>Joint placement + path assignment on leftover CIR</td><td>Admit cheapest of ≤K bindings with <code>T_pred ≤ D_j</code> and residual ≥ 0</td></tr>
+<tr><td>G4</td><td>Closed reject-code enum, no stringly types</td><td>Every reject writes one <code>RejectCode</code> (§9.2, §13.5)</td></tr>
+<tr><td>G5</td><td>Spine fail: reroute or kill. Leaf/rail fail: kill</td><td>Dead element carries 0 bytes (I2)</td></tr>
+<tr><td>G6</td><td>Planner = same engine + capacity delta</td><td><code>plan --delta &#x27;delay-row=B&#x27;</code> snapshot-tested</td></tr>
+<tr><td>G7</td><td>Parity: event-log rollup == live counters</td><td>Gate in CI (I6)</td></tr>
+<tr><td>G8</td><td>One CLI binary, static B&amp;W <code>report.html</code></td><td>Grammar and exit codes in §16</td></tr>
+<tr><td>G9</td><td>Laptop-safe</td><td>2048 GPUs &lt; 500 MB RSS; no packet model</td></tr>
+</table>
+<h3 id="4-2-non-goals-v1-cut-list">4.2 Non-Goals (v1 cut list)</h3>
+<table>
+<tr><th>ID</th><th>Non-goal</th><th>Revisit</th></tr>
+<tr><td>N1</td><td>Packet-level ns-3, PFC, DCQCN, multi-QP</td><td>Never in v1</td></tr>
+<tr><td>N2</td><td>Real training / autodiff / NCCL runtime as the engine</td><td>Optional one-point NCCL calibration only</td></tr>
+<tr><td>N3</td><td>RL, MILP, CP-SAT</td><td>MILP behind a flag is a post-v1 addendum</td></tr>
+<tr><td>N4</td><td>OCS / optical rewiring</td><td>Post-v1</td></tr>
+<tr><td>N5</td><td>Tree AllReduce, NVLS, SHARP</td><td>Post-v1</td></tr>
+<tr><td>N6</td><td>PXN (default off; cross-rail uses spines)</td><td>Post-v1</td></tr>
+<tr><td>N7</td><td>NVLink as fabric capacity</td><td>Intra-node path is empty; T_fabric = 0</td></tr>
+<tr><td>N8</td><td>ToR-mapping all 8 NICs of a node onto one leaf</td><td>Forbidden; test <code>topo_rail_not_tor</code></td></tr>
+<tr><td>N9</td><td>Poisson arrivals</td><td>Mix file lists explicit jobs / patterns</td></tr>
+<tr><td>N10</td><td>Production TUI, globe, canvas inspector</td><td><code>inspect</code> is later; v1 is tables</td></tr>
+<tr><td>N11</td><td>Multi-threaded FEL, distributed sim</td><td>Single thread, one FEL</td></tr>
+<tr><td>N12</td><td>8192 GPUs resident in RAM</td><td>Traces on disk only</td></tr>
+<tr><td>N13</td><td>Kubernetes / real cluster admission</td><td>Simulated fabric only</td></tr>
+<tr><td>N14</td><td>Satellite / NTN / ISL / gateway vocabulary</td><td>Hard domain freeze</td></tr>
+</table>
+<hr>
+<h2 id="5-key-decisions">5. Key Decisions</h2>
+<p>Week-3 decision log. Implementation copies the <strong>Pick</strong> column.</p>
+<table>
+<tr><th>Decision</th><th>Options</th><th>Pick</th><th>Why</th></tr>
+<tr><td>Topology class</td><td>3-tier Clos; Dragonfly; rail-optimized 2-tier Clos</td><td>Rail-optimized 2-tier Clos, SuperPOD-like SU = 32 nodes / 256 GPUs</td><td>Matches DP rail locality; locked closed forms</td></tr>
+<tr><td>Spine wiring</td><td>Per-rail independent Clos; shared spines</td><td>Shared spine layer, <code>S = ceil(L/2)</code> at φ=1, D=U=32, P=64</td><td>The locked closed form; a spine fail is a fabric event</td></tr>
+<tr><td>Host mapping</td><td>ToR (8 NICs → 1 leaf); rail (NIC r → leaf of rail r)</td><td>Rail. <code>LeafId = rail * ceil(N/D) + floor(n/D)</code></td><td>ToR-map is the classic SuperPOD mistake</td></tr>
+<tr><td>Intra-node</td><td>Count NVLink as fabric; ignore</td><td>Ignore. Same-node path is empty</td><td>NVLink is not the fabric</td></tr>
+<tr><td>Collectives</td><td>Ring+Tree+NVLS+SHARP; Ring+A2A only</td><td>Ring AllReduce + pairwise AllToAll</td><td>Two shapes cover DP and MoE; trees later</td></tr>
+<tr><td>α, β</td><td>Switch-ns α; NCCL-scale α; β in ns/B</td><td>α = 1 µs, <strong>β = 20 ps/B</strong> at 50 GB/s (<code>2e-11 s/B</code>)</td><td>20 ns/B is 1/(50 MB/s); test <code>model_beta_is_20ps_not_20ns</code></td></tr>
+<tr><td>Units</td><td>Mix bits and bytes</td><td>SI decimal for B/s and bit/s; MiB is 2^20; never mix</td><td>Goldens fail on 8× errors</td></tr>
+<tr><td>Leftover</td><td>Instant leftover; CIR leftover</td><td>CIR. <code>r_e^avail = c_e(1−s) − Σ ρ_{j,e}</code></td><td>Admission leftover, not telemetry leftover</td></tr>
+<tr><td>Scratch s</td><td>0; 0.05; 0.10</td><td>s = 0.05, unused by jobs</td><td>Epoch walk / control headroom</td></tr>
+<tr><td>Naive admit</td><td>GPU count only; GPU+some net check</td><td>GPU count only</td><td>Baseline must be allowed to violate net SLO</td></tr>
+<tr><td>Joint candidates</td><td>Exhaustive; K=8; K=16; K=32</td><td><strong>K = 16</strong> = 8 first-fit shifts + 8 rail rotates. Admit uses <code>ks[0]</code> only; extra k for <code>--explain</code></td><td>Covers SU fragmentation</td></tr>
+<tr><td>Path algorithm</td><td>Yen on general graph; Clos enumeration</td><td>Clos enumeration, k = 8, zip parallel cables, lowest <code>LinkId</code></td><td>2-tier Clos paths are enumerable</td></tr>
+<tr><td>Path cost</td><td>Hop count; MLU; <code>1/(r+ε)</code></td><td><code>Cost_e = 1/(r_e^avail + ε)</code>, ε = 10^{-12} c_e</td><td>Residual-headroom, B4-style</td></tr>
+<tr><td>Rate alloc</td><td>Equal split; max-min water-fill</td><td>Max-min water-fill per phase; CIR = max-phase load</td><td>Collectives care about last flow</td></tr>
+<tr><td>Admit predicate</td><td>Any feasible; cheapest feasible</td><td>Cheapest binding with <code>T_pred ≤ D_j</code> and residual ≥ 0</td><td>Deterministic, explainable</td></tr>
+<tr><td>Simultaneous arrivals</td><td>Parallel admit; FIFO</td><td>Single-threaded FIFO admit queue, seq order</td><td>No race; deterministic</td></tr>
+<tr><td>Clock</td><td>f64 seconds; u64 ns; i128 ps + seq</td><td>i128 picoseconds + u64 seq</td><td>Total order, no float time</td></tr>
+<tr><td>FEL</td><td>Multi-thread; tick loop</td><td>Single-thread binary heap</td><td>Reproducible</td></tr>
+<tr><td>Failure spine</td><td>Always kill; always reroute; reroute-or-kill</td><td>Reroute if <code>T_pred ≤ D_j</code> else kill</td><td>Matches v1 lock</td></tr>
+<tr><td>Failure leaf/rail</td><td>Reroute via PXN; kill</td><td>Kill. Single-homed</td><td>No PXN</td></tr>
+<tr><td>Epoch update</td><td>Mutate in place; 2PC + Arc swap</td><td>New <code>Arc&lt;Graph&gt;</code>, 2PC prepare/commit</td><td>All decisions in an epoch see one graph</td></tr>
+<tr><td>Planner</td><td>Second solver; same engine</td><td>Same engine + capacity delta</td><td>One code path</td></tr>
+<tr><td>Row size</td><td>8 nodes; 16 nodes; 32-node SU</td><td>16 nodes. Row B = nodes <code>[16,32)</code></td><td>Half-SU; <code>delay-row=B</code> is concrete</td></tr>
+<tr><td>Buffer</td><td>Infinite only; finite only</td><td>Finite default <code>B_buf = 32 MiB</code>; infinite opt-in</td><td>Infinite-only is a listed mistake</td></tr>
+<tr><td>Arrivals</td><td>Poisson; explicit mix</td><td>Explicit TOML jobs + optional periodic pattern</td><td>No Poisson</td></tr>
+<tr><td>Config format</td><td>JSON; YAML; TOML</td><td>TOML</td><td>Human-writable mixes</td></tr>
+<tr><td>Traces</td><td>CSV; JSONL; Parquet</td><td>Parquet</td><td>Parity queries; 8192 on disk</td></tr>
+<tr><td>UI</td><td>TUI; globe; static HTML tables</td><td>Static B&amp;W <code>report.html</code>, tables only</td><td>Operator artifact, not a renderer</td></tr>
+<tr><td>Language</td><td>C++; Python; Rust</td><td>Rust workspace, 8 crates, DAG in §6</td><td>Types + determinism</td></tr>
+<tr><td>Concurrency</td><td>rayon in hot path; none</td><td>None in sim/ctrl hot path</td><td>Determinism</td></tr>
+<tr><td>Seed default</td><td>0; 1; random</td><td>1</td><td>Replay identity</td></tr>
+<tr><td>Cross-rail</td><td>Forbidden; via spine; via PXN</td><td>Via spine (<code>allow_cross_rail=true</code>)</td><td>Shared spines exist; PXN is N6</td></tr>
+<tr><td>Oversub CLI</td><td>Hidden; <code>--oversub K</code></td><td><code>--oversub K_OMEGA</code> ∈ {1,2,4,8,16,32}, <code>U=D/K_Ω</code></td><td>Ω_ls = <strong>K_Ω</strong>. Binding cap stays <strong>K</strong></td></tr>
+<tr><td><code>--gpus</code> meaning</td><td>Node count; GPU count</td><td>GPU count <code>G_tot</code>. Grammar: <code>--gpus G_TOT</code></td><td>Node count is <span class="math">N=G_\mathrm{tot}/R</span></td></tr>
+<tr><td>Isolated-SLO load check</td><td>Warn; exit 4; assume intra-node</td><td>Exit 4 if isolated fabric <span class="math">T&gt;D_j</span>. Conservative: may reject a job that would be intra-node T=0</td><td>Fail fast</td></tr>
+<tr><td>Explain</td><td>Reconstruct leftovers; persist</td><td>Persist <code>admit.jsonl</code> at decision; <code>--explain</code> reads it</td><td>Offline reader, no silent replay</td></tr>
+<tr><td>Compute placement</td><td>After last collective; between only</td><td>Step 0 <strong>before</strong> first collective (<code>StepBoundary</code> at <code>arrive+compute_ps</code>). Later: <code>CollectiveEnd</code> → next <code>StepBoundary</code> at <code>now+compute_ps</code>. No trailing compute</td><td><code>exit_ps</code> is then determined</td></tr>
+<tr><td>EventKind extras</td><td>Encode leaf as LinkFails; no horizon event</td><td><strong><code>LeafFail</code> + <code>HorizonCut</code></strong> in the closed set (14 variants)</td><td>Leaf≠bundle of LinkFails; horizon must cut</td></tr>
+<tr><td>GPU occupancy</td><td>Occupied on <code>Arc&lt;Graph&gt;</code></td><td>Graph: static + <code>Unavailable</code> only. Live occupancy is <code>Occupancy</code> on <code>JobTable</code></td><td>Admit/exit must not swap the epoch graph</td></tr>
+<tr><td>JobId / admit order</td><td>Dense reassign; sort by JobId</td><td>TOML <code>id</code> stable. Load sort <code>(arrive_ps, file_index)</code>. Admit by FEL seq. Recompute by <strong>admit-seq</strong></td><td>Holes in ids stay</td></tr>
+<tr><td>FlowId</td><td>Per-collective reset; undefined</td><td>Run-global u64 at <code>CollectiveStart</code>, order <code>(comm_index, phase, src Rank)</code></td><td>Crumb pass uses that order</td></tr>
+<tr><td>Naive on zero leftover</td><td>Reject; invent a rate</td><td>Still <strong>admit</strong>. Water-fill on <code>c_e−cir</code> (scratch open). On <code>Err</code>: rate 0, <code>T_realized</code> with <span class="math">B_\mathrm{eff}=0</span> → SLO miss</td><td>GPU-count-only baseline</td></tr>
+<tr><td>Parallel LS cables</td><td>Cartesian; any pair</td><td><strong>Zip</strong> ascending <code>(LinkId_up, LinkId_down)</code> per spine. Skip if any of <code>{hs,u,d,hd}</code> failed</td><td>Deterministic <code>ks[0]</code></td></tr>
+<tr><td>ctrl ↔ topo</td><td>Transitive via sim; move Graph</td><td><strong><code>ctrl → topo</code></strong>. Layering test is rustc/<code>public_dependency</code></td><td>Controller must name <code>Graph</code></td></tr>
+<tr><td>Queue delay</td><td>Add to FEL <code>d_φ</code>; ignore</td><td><strong>Report-only</strong> <code>queue_delay_us</code>. <code>T_realized</code> ignores <span class="math">q</span> in v1</td><td>Avoids shifting every FlowDepart</td></tr>
+<tr><td>plan + fail</td><td>Plan never fails; unspecified</td><td><code>plan</code> accepts <code>--fail</code> (same grammar as <code>run</code>)</td><td>§6.2 composition</td></tr>
+<tr><td>Metrics storage</td><td>f64 minutes</td><td>Integer <strong>microseconds</strong> in <code>report.json</code>. Accumulators are i128 ps; <code>/60e12</code> → minutes, <code>/1e12</code> → seconds</td><td>G1 byte-identical</td></tr>
+<tr><td>Hash inputs</td><td>Canonical TOML; formatted JSON</td><td><code>mix_hash</code> / <code>topo_hash</code> = SHA-256 of <strong>raw file bytes</strong></td><td>Replay identity</td></tr>
+<tr><td>Cost ties</td><td>Exact <code>==</code>; 1e-12</td><td>Relative <span class="math">10^{-12}</span>, then lower binding index</td><td>One rule</td></tr>
+<tr><td>A2A payload</td><td>“Each rank sends <span class="math">M_\mathrm{tot}</span>”</td><td><code>payload_bytes</code> = full per-rank buffer <span class="math">M_\mathrm{tot}</span> (same object as ring <span class="math">M</span>). Fabric volume <span class="math">(p-1)/p\,M_\mathrm{tot}</span></td><td>Matches Example B golden</td></tr>
+<tr><td>Intra-node T</td><td>Charge α anyway</td><td>Entire communicator intra-node ⇒ <code>T=0</code>, no α, CIR=0. Charge α only if the phase has ≥1 fabric flow</td><td>First-fit 8-GPU node</td></tr>
+<tr><td>Water-fill crumbs</td><td>Return Err on floor 0</td><td><code>bottleneck==0</code> → <strong>break</strong> to +1 B/s crumb pass. <code>ZeroLeftover</code> only if no flow can take 1 B/s</td><td>Else rem∈[1,n) false-rejects</td></tr>
+<tr><td>2PC / Drain</td><td>Drain releases CIR; two Fail* = two epochs</td><td>Prepare returns <code>{graph&#x27;,kills,reroutes,residual&#x27;}</code>. Commit swaps Graph+Residual. One <code>RateRecompute</code>. <code>DrainComplete</code> is <strong>trace-only</strong>. Coalesce same-ps Fail*</td><td>No double-release</td></tr>
+<tr><td>Link capacity</td><td>Hardcode 50e9</td><td><code>capacity_Bps = port_speed_gbps * 1_000_000_000 / 8</code>. <strong>Reject <code>fill != 1.0</code></strong> (<code>E_TOPO</code>)</td><td>TOML is not ignored</td></tr>
+<tr><td>Binding shift field</td><td><code>skip_nodes</code></td><td><code>FirstFitShift { skip_free_gpus: u8 }</code> — skip <code>i*R</code> free GPUs</td><td>Name matches the code</td></tr>
+<tr><td>CLI dump</td><td>Unspecified columns</td><td><code>topo --dump</code> columns locked §16.1. <code>--json</code> XOR <code>--dump</code></td><td>Week-5 golden</td></tr>
+<tr><td>I1 after naive</td><td>Rates may exceed <span class="math">c_e</span></td><td>After <code>RateRecompute</code>, <strong>scale</strong> live rates so <span class="math">\sum\mathrm{rate}\le c_e</span></td><td>Queue is report-only</td></tr>
+</table>
+<hr>
+<h2 id="6-system-architecture">6. System architecture</h2>
+<h3 id="6-1-system-context">6.1 System context</h3>
+<div class="figure"><svg viewBox="0 0 720 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System context">
+  <rect x="1" y="1" width="718" height="158" fill="#fff" stroke="#000"/>
+  <rect x="20" y="56" width="90" height="40" fill="#fff" stroke="#000"/>
+  <text x="65" y="80" text-anchor="middle" font-size="12" font-family="Georgia,serif">Operator</text>
+  <polygon points="118,76 138,76 138,70 156,80 138,90 138,84 118,84" fill="#000"/>
+  <rect x="164" y="56" width="100" height="40" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="214" y="80" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-te</text>
+  <polygon points="272,76 292,76 292,70 310,80 292,90 292,84 272,84" fill="#000"/>
+  <rect x="318" y="56" width="100" height="40" fill="#fff" stroke="#000"/>
+  <text x="368" y="80" text-anchor="middle" font-size="12" font-family="Georgia,serif">ctrl / sim</text>
+  <polygon points="426,76 446,76 446,70 464,80 446,90 446,84 426,84" fill="#000"/>
+  <rect x="472" y="28" width="100" height="36" fill="#fff" stroke="#000"/>
+  <text x="522" y="50" text-anchor="middle" font-size="12" font-family="Georgia,serif">Graph</text>
+  <rect x="472" y="88" width="100" height="36" fill="#fff" stroke="#000"/>
+  <text x="522" y="110" text-anchor="middle" font-size="12" font-family="Georgia,serif">Parquet</text>
+  <line x1="418" y1="76" x2="472" y2="46" stroke="#000"/>
+  <line x1="418" y1="76" x2="472" y2="106" stroke="#000"/>
+  <rect x="600" y="56" width="100" height="40" fill="#fff" stroke="#000"/>
+  <text x="650" y="80" text-anchor="middle" font-size="11" font-family="Georgia,serif">report.html</text>
+  <line x1="572" y1="106" x2="600" y2="80" stroke="#000"/>
+  <text x="360" y="148" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 1. Operator talks only to the CLI.</text>
+</svg></div>
+<p>Operator never talks to the graph except through CLI subcommands <code>topo</code>, <code>run</code>, <code>plan</code>, <code>explain</code>.</p>
+<h3 id="6-2-control-loop">6.2 Control loop</h3>
+<div class="figure"><svg viewBox="0 0 720 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Control loop">
+  <rect x="1" y="1" width="718" height="168" fill="#fff" stroke="#000"/>
+  <rect x="24" y="40" width="88" height="36" fill="#fff" stroke="#000"/>
+  <text x="68" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">Queue</text>
+  <polygon points="120,58 140,58 140,52 158,62 140,72 140,66 120,66" fill="#000"/>
+  <rect x="166" y="40" width="88" height="36" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="210" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">Admit</text>
+  <polygon points="262,58 282,58 282,52 300,62 282,72 282,66 262,66" fill="#000"/>
+  <rect x="308" y="40" width="88" height="36" fill="#fff" stroke="#000"/>
+  <text x="352" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">Place</text>
+  <polygon points="404,58 424,58 424,52 442,62 424,72 424,66 404,66" fill="#000"/>
+  <rect x="450" y="40" width="88" height="36" fill="#fff" stroke="#000"/>
+  <text x="494" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">Paths</text>
+  <polygon points="546,58 566,58 566,52 584,62 566,72 566,66 546,66" fill="#000"/>
+  <rect x="592" y="40" width="104" height="36" fill="#fff" stroke="#000"/>
+  <text x="644" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">FEL monitor</text>
+  <polyline points="210,76 210,118 644,118 644,76" fill="none" stroke="#000"/>
+  <polygon points="638,76 644,64 650,76" fill="#000"/>
+  <text x="430" y="112" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">epoch on fail</text>
+  <line x1="210" y1="76" x2="210" y2="148" stroke="#000"/>
+  <rect x="166" y="148" width="88" height="0" fill="none"/>
+  <text x="210" y="142" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">no → RejectCode</text>
+  <text x="360" y="20" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 2. One loop for run and plan.</text>
+</svg></div>
+<p>One loop for online <code>run</code> and offline <code>plan</code>. <code>plan</code> accepts <code>--fail</code> with the same grammar as <code>run</code>. Without <code>--fail</code>, plan emits no Fail* events.</p>
+<h3 id="6-3-crate-dag">6.3 Crate DAG</h3>
+<div class="figure"><svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Crate dependency DAG">
+  <rect x="1" y="1" width="718" height="258" fill="#fff" stroke="#000"/>
+  <text x="360" y="18" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 3. Import DAG. Left is the binary. Right is the shared types sink.</text>
+  <rect x="24" y="110" width="100" height="32" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="74" y="130" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-te</text>
+  <rect x="180" y="40" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="235" y="58" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-ctrl</text>
+  <rect x="180" y="112" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="235" y="130" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-topo</text>
+  <rect x="180" y="184" width="120" height="28" fill="#fff" stroke="#000"/>
+  <text x="240" y="202" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-report</text>
+  <rect x="360" y="40" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="415" y="58" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-sim</text>
+  <rect x="360" y="112" width="120" height="28" fill="#fff" stroke="#000"/>
+  <text x="420" y="130" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-model</text>
+  <rect x="360" y="184" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="415" y="202" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-trace</text>
+  <rect x="560" y="110" width="130" height="32" fill="#fff" stroke="#000"/>
+  <text x="625" y="130" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-types</text>
+  <line x1="124" y1="120" x2="180" y2="54" stroke="#000"/>
+  <line x1="124" y1="126" x2="180" y2="126" stroke="#000"/>
+  <line x1="124" y1="132" x2="180" y2="198" stroke="#000"/>
+  <line x1="290" y1="54" x2="360" y2="54" stroke="#000"/>
+  <line x1="290" y1="54" x2="360" y2="126" stroke="#000"/>
+  <line x1="235" y1="68" x2="235" y2="112" stroke="#000"/>
+  <line x1="360" y1="126" x2="290" y2="126" stroke="#000"/>
+  <line x1="415" y1="68" x2="415" y2="112" stroke="#000"/>
+  <line x1="415" y1="140" x2="415" y2="184" stroke="#000"/>
+  <line x1="480" y1="54" x2="560" y2="120" stroke="#000"/>
+  <line x1="480" y1="126" x2="560" y2="126" stroke="#000"/>
+  <line x1="480" y1="198" x2="560" y2="132" stroke="#000"/>
+  <text x="360" y="242" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">sim and ctrl must not import te. types imports nothing in-workspace.</text>
+</svg></div>
+<p><strong>Import law.</strong> <code>fabric-sim</code> and <code>fabric-ctrl</code> must not import <code>fabric-te</code>. <code>fabric-ctrl</code> <strong>does</strong> import <code>fabric-topo</code>. <code>fabric-types</code> imports nothing in-workspace. Cycle = CI fail (<code>cargo deny</code> / rustc <code>public_dependency</code>, not grep).</p>
+<h3 id="6-4-runtime-objects">6.4 Runtime objects</h3>
+<table>
+<tr><th>Object</th><th>Owner crate</th><th>Mutability</th></tr>
+<tr><td><code>Graph</code> (static topology + <code>Unavailable</code>)</td><td><code>fabric-topo</code></td><td>Immutable per epoch; <code>Arc&lt;Graph&gt;</code></td></tr>
+<tr><td><code>Residual</code> (<code>r_avail</code>, <code>cir[]</code>)</td><td><code>fabric-sim</code></td><td>Mutable; copied at 2PC prepare</td></tr>
+<tr><td><code>JobTable</code> + <code>Occupancy</code></td><td><code>fabric-ctrl</code></td><td>Mutable on admit/exit; <strong>not</strong> on Graph</td></tr>
+<tr><td><code>Fel</code></td><td><code>fabric-sim</code></td><td>Mutable, single thread</td></tr>
+<tr><td><code>TraceSink</code></td><td><code>fabric-trace</code></td><td>Append-only Parquet</td></tr>
+</table>
+<hr>
+<h2 id="7-topology-model-and-math">7. Topology model and math</h2>
+<h3 id="7-1-symbols">7.1 Symbols</h3>
+<table>
+<tr><th>Symbol</th><th>Meaning</th><th>v1 default</th><th>Unit</th></tr>
+<tr><td><span class="math">N</span></td><td>Node count</td><td><span class="math">G_\mathrm{tot}/R</span></td><td>1</td></tr>
+<tr><td><span class="math">G</span></td><td>GPUs per node</td><td>8</td><td>1</td></tr>
+<tr><td><span class="math">R</span></td><td>Rails (= NICs per node)</td><td>8</td><td>1</td></tr>
+<tr><td><span class="math">G_\mathrm{tot}</span></td><td>GPU count <span class="math">= NR</span></td><td>CLI <code>--gpus</code></td><td>1</td></tr>
+<tr><td><span class="math">P</span></td><td>Switch radix</td><td>64</td><td>ports</td></tr>
+<tr><td><span class="math">D</span></td><td>Leaf downlinks</td><td>32</td><td>ports</td></tr>
+<tr><td><span class="math">U</span></td><td>Leaf uplinks</td><td><span class="math">D/K_\Omega</span>, default <span class="math">K_\Omega=1</span> → 32</td><td>ports</td></tr>
+<tr><td><span class="math">K_\Omega</span></td><td>Oversubscription <code>--oversub</code></td><td>1</td><td>1</td></tr>
+<tr><td><span class="math">\Omega_\mathrm{ls}</span></td><td><span class="math">D/U = K_\Omega</span></td><td>1</td><td>1</td></tr>
+<tr><td><span class="math">\Omega_\mathrm{hn}</span></td><td>Host:network</td><td>1 when <span class="math">D \mid N</span></td><td>1</td></tr>
+<tr><td><span class="math">B</span></td><td>Port speed</td><td><span class="math">400\times 10^9</span></td><td>bit/s</td></tr>
+<tr><td><span class="math">c_e</span></td><td>Directed link capacity</td><td><span class="math">50\times 10^9</span></td><td>B/s</td></tr>
+<tr><td><span class="math">\varphi</span></td><td>LS fill factor</td><td>1</td><td>1</td></tr>
+<tr><td><span class="math">L</span></td><td>Leaf count</td><td>closed form</td><td>1</td></tr>
+<tr><td><span class="math">S</span></td><td>Spine count</td><td>closed form</td><td>1</td></tr>
+<tr><td><span class="math">s</span></td><td>Scratch fraction</td><td>0.05</td><td>1</td></tr>
+</table>
+<p><strong>Unit law.</strong> <span class="math">c_e = B/8</span> with <span class="math">B</span> in bit/s, <span class="math">c_e</span> in B/s, SI decimal (<span class="math">1\,\mathrm{GB/s}=10^9\,\mathrm{B/s}</span>). 400 Gbps = 50 GB/s. A 8× bug is an invariant fail in <code>model_units_bytes_not_bits</code>.</p>
+<h3 id="7-2-construction-imperative">7.2 Construction (imperative)</h3>
+<ol><li>Require <span class="math">G_\mathrm{tot} \bmod R = 0</span>. Else CLI exit 2.</li><li><span class="math">N = G_\mathrm{tot} / R</span>. v1 has no <code>--gpus-per-node</code>. <code>--rails R</code> sets <span class="math">G = R</span>. Default <span class="math">G = R = 8</span>. One NIC per GPU.</li><li><code>num_groups = ceil(N / D)</code>.</li><li>For each rail <span class="math">r \in [0,R)</span>, for each group <span class="math">g \in [0,\mathrm{num\_groups})</span>, emit one leaf.</li><li><span class="math">L = R \cdot \lceil N/D \rceil</span>.</li><li><span class="math">U = D / K_\Omega</span>. Require <span class="math">D \bmod K_\Omega = 0</span>.</li><li><span class="math">S = \lceil L \cdot U / P \rceil = \lceil L / (2 K_\Omega) \rceil</span>.</li><li>Wire host links: NIC <span class="math">(n,r)</span> ↔ leaf <span class="math">(r, \lfloor n/D \rfloor)</span>. One downlink per NIC.</li><li>Wire LS: see §7.4.</li><li>Every directed edge: <code>capacity_Bps = (port_speed_gbps as u64) * 1_000_000_000 / 8</code>, <code>scratch = 0.05</code>, <code>failed = false</code>. Default <code>port_speed_gbps=400</code> ⇒ <code>50_000_000_000</code>. If <code>fill != 1.0</code>: exit 2 <code>E_TOPO</code>. v1 does not implement φ≠1 wiring.</li></ol>
+<p><strong>Invariant I10.</strong> The 8 NICs of node <span class="math">n</span> land on 8 distinct leaves, one per rail. Never on one leaf.</p>
+<h3 id="7-3-closed-forms-1">7.3 Closed forms (φ = 1)</h3>
+<pre class='math'>L = R \left\lceil \frac{N}{D} \right\rceil = 8 \left\lceil \frac{N}{32} \right\rceil</pre>
+<pre class='math'>S = \left\lceil \frac{L \cdot U}{P} \right\rceil = \left\lceil \frac{L}{2 K_\Omega} \right\rceil</pre>
+<pre class='math'>E_\mathrm{host} = N R = 8N \quad \text{(undirected host cables; 2 directed edges each)}</pre>
+<pre class='math'>E_\mathrm{ls} = L \cdot U \quad \text{(undirected LS cables; 2 directed edges each)}</pre>
+<pre class='math'>B_\mathrm{bisect} = \tfrac12 L \cdot U \cdot B</pre>
+<p><strong>Caveat (DP metric).</strong> If <span class="math">N \le D</span>, same-rank traffic is leaf-local and never hits a spine. The DP bisection metric is then the per-rail leaf bisection <span class="math">D \cdot B / 2</span>, not <span class="math">B_\mathrm{bisect}</span>. Joint and naive still <em>may</em> send cross-rail flows over spines.</p>
+<h3 id="7-4-ls-wiring-deterministic">7.4 LS wiring (deterministic)</h3>
+<p>Let <code>par[ℓ, σ]</code> be the number of parallel undirected cables between leaf <span class="math">ℓ</span> and spine <span class="math">σ</span>.</p>
+<ul><li>If <span class="math">S \le U</span> and <span class="math">L \le P</span>: full bipartite. <code>par[ℓ, σ] = ⌊U/S⌋</code> plus one extra to spines \(σ &lt; (U \bmod S)\`.</li><li>If <span class="math">S &gt; U</span>: leaf <span class="math">ℓ</span> connects to the <span class="math">U</span> spines <span class="math">(ℓ \cdot U + i) \bmod S</span> for <span class="math">i \in [0,U)</span>, one cable each.</li></ul>
+<p>N=256 showcase (<span class="math">S=U=32</span>) is full mesh, one cable per pair. N=1024 (<span class="math">S=128&gt;U=32</span>) is the cyclic regular case. Implement both; goldens use the full-mesh side.</p>
+<h3 id="7-5-id-assignment-locked">7.5 ID assignment (locked)</h3>
+<pre><code>NodeId(n)           n in 0..N
+GpuId               n * R + r
+NicId               = GpuId
+RailId              r in 0..R
+LeafGroup           n / D
+LeafId              r * num_groups + LeafGroup
+SpineId             0..S-1
+
+LinkId next():
+  for n in 0..N:
+    for r in 0..R:
+      emit Nic→Leaf    // LinkId 2*(n*R+r)
+      emit Leaf→Nic    // LinkId 2*(n*R+r)+1
+  for leaf in 0..L:          // LeafId order
+    for spine in neighbors(leaf) in SpineId order:
+      for p in 0..par[leaf,spine]:
+        emit Leaf→Spine
+        emit Spine→Leaf</code></pre>
+<p><code>LinkId</code> is dense from 0. Tests pin the first 16 host LinkIds on <code>n32</code>.</p>
+<h3 id="7-6-worked-example-a-n-32-nodes-g-8-256-gpus">7.6 Worked Example A — N = 32 nodes, G = 8 → 256 GPUs</h3>
+<pre class='math'>\begin{align*}
+L &amp;= 8 \lceil 32/32 \rceil = 8 \cdot 1 = 8 \\
+S &amp;= \lceil 8/2 \rceil = 4 \\
+E_\mathrm{host} &amp;= 32 \cdot 8 = 256 \\
+E_\mathrm{ls} &amp;= 8 \cdot 32 = 256 \\
+B_\mathrm{bisect} &amp;= \tfrac12 \cdot 8 \cdot 32 \cdot 400\,\mathrm{Gbps} = 51\,200\,\mathrm{Gbps} = 51.2\,\mathrm{Tbps} \\
+B_\mathrm{bisect,B/s} &amp;= \tfrac12 \cdot 8 \cdot 32 \cdot 50\times 10^9 = 6.4\times 10^{12}\,\mathrm{B/s} = 6.4\,\mathrm{TB/s}
+\end{align*}</pre>
+<p><span class="math">N = D = 32</span>: same-rank DP never hits spine. Per-rail leaf bisection <span class="math">= D B / 2 = 32 \cdot 400 / 2 = 6\,400\,\mathrm{Gbps} = 6.4\,\mathrm{Tbps}</span>.</p>
+<p>Check: 8 leaves × 32 up = 256 LS cables. 4 spines × 64 ports = 256. Tight.</p>
+<h3 id="7-7-worked-example-a2-n-64-nodes-g-8-512-gpus">7.7 Worked Example A2 — N = 64 nodes, G = 8 → 512 GPUs</h3>
+<pre class='math'>\begin{align*}
+L &amp;= 8 \lceil 64/32 \rceil = 16 \\
+S &amp;= \lceil 16/2 \rceil = 8 \\
+E_\mathrm{host} &amp;= 512 \\
+E_\mathrm{ls} &amp;= 16 \cdot 32 = 512 \\
+B_\mathrm{bisect} &amp;= \tfrac12 \cdot 16 \cdot 32 \cdot 400\,\mathrm{Gbps} = 102\,400\,\mathrm{Gbps} = 102.4\,\mathrm{Tbps}
+\end{align*}</pre>
+<p>Two leaf groups per rail. Same-rank inter-SU traffic <strong>does</strong> hit spine. <code>par[ℓ,σ] = 32/8 = 4</code>.</p>
+<h3 id="7-8-scale-table-1-k-1">7.8 Scale table (φ=1, K_Ω=1)</h3>
+<table>
+<tr><th><span class="math">G_\mathrm{tot}</span></th><th><span class="math">N</span></th><th><span class="math">L</span></th><th><span class="math">S</span></th><th><span class="math">E_\mathrm{host}</span></th><th><span class="math">E_\mathrm{ls}</span></th><th><span class="math">B_\mathrm{bisect}</span></th><th>Role</th></tr>
+<tr><td>256</td><td>32</td><td>8</td><td>4</td><td>256</td><td>256</td><td>51.2 Tbps</td><td>Daily</td></tr>
+<tr><td>512</td><td>64</td><td>16</td><td>8</td><td>512</td><td>512</td><td>102.4 Tbps</td><td>Daily</td></tr>
+<tr><td>2048</td><td>256</td><td>64</td><td>32</td><td>2048</td><td>2048</td><td>409.6 Tbps</td><td>Showcase</td></tr>
+<tr><td>8192</td><td>1024</td><td>256</td><td>128</td><td>8192</td><td>8192</td><td>1.6384 Pbps</td><td>Disk traces</td></tr>
+</table>
+<h3 id="7-9-rail-optimized-fabric-schematic">7.9 Rail-optimized fabric (schematic)</h3>
+<div class="figure"><svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rail-optimized fabric schematic">
+  <rect x="1" y="1" width="718" height="238" fill="#fff" stroke="#000"/>
+  <text x="360" y="20" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 4. Rail: same local rank, one leaf. Two nodes, two rails shown.</text>
+  <rect x="220" y="36" width="70" height="26" fill="#fff" stroke="#000"/>
+  <text x="255" y="53" text-anchor="middle" font-size="12" font-family="Georgia,serif">S0</text>
+  <rect x="430" y="36" width="70" height="26" fill="#fff" stroke="#000"/>
+  <text x="465" y="53" text-anchor="middle" font-size="12" font-family="Georgia,serif">S1</text>
+  <rect x="140" y="100" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="195" y="118" text-anchor="middle" font-size="12" font-family="Georgia,serif">Leaf r0 g0</text>
+  <rect x="470" y="100" width="110" height="28" fill="#fff" stroke="#000"/>
+  <text x="525" y="118" text-anchor="middle" font-size="12" font-family="Georgia,serif">Leaf r1 g0</text>
+  <rect x="140" y="180" width="70" height="28" fill="#fff" stroke="#000"/>
+  <text x="175" y="198" text-anchor="middle" font-size="12" font-family="Georgia,serif">n0</text>
+  <rect x="510" y="180" width="70" height="28" fill="#fff" stroke="#000"/>
+  <text x="545" y="198" text-anchor="middle" font-size="12" font-family="Georgia,serif">n1</text>
+  <line x1="255" y1="62" x2="195" y2="100" stroke="#000"/>
+  <line x1="255" y1="62" x2="525" y2="100" stroke="#000"/>
+  <line x1="465" y1="62" x2="195" y2="100" stroke="#000"/>
+  <line x1="465" y1="62" x2="525" y2="100" stroke="#000"/>
+  <line x1="195" y1="128" x2="175" y2="180" stroke="#000"/>
+  <line x1="195" y1="128" x2="545" y2="180" stroke="#000"/>
+  <line x1="525" y1="128" x2="175" y2="180" stroke="#000"/>
+  <line x1="525" y1="128" x2="545" y2="180" stroke="#000"/>
+  <text x="360" y="226" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">NIC 0 of every node → leaf r0. NIC 1 → leaf r1.</text>
+</svg></div>
+<p>NIC 0 of every node in a group hits <code>Leaf r0 g<em></code>. NIC 1 hits <code>Leaf r1 g</em></code>. That is the rail.</p>
+<hr>
+<h2 id="8-workload-and-collective-math">8. Workload and collective math</h2>
+<h3 id="8-1-job-shape">8.1 Job shape</h3>
+<p>A job is data, not a code fork.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Constraint</th></tr>
+<tr><td><code>gpu_count</code> <span class="math">p_\mathrm{job}</span></td><td>u32</td><td>≥ 1</td></tr>
+<tr><td><code>dp</code>, <code>tp</code>, <code>pp</code></td><td>u32</td><td><code>dp <em> tp </em> pp == gpu_count</code></td></tr>
+<tr><td><code>collective</code></td><td>enum</td><td><code>ring_allreduce</code> \</td><td><code>pairwise_alltoall</code></td></tr>
+<tr><td><code>payload_bytes</code></td><td>u64</td><td>Full per-rank buffer. Ring: <span class="math">M</span>. A2A: <span class="math">M_\mathrm{tot}</span> (same object). Fabric A2A volume <span class="math">=(p-1)/p\,M_\mathrm{tot}</span></td></tr>
+<tr><td><code>step_count</code></td><td>u32</td><td>≥ 1, default 100</td></tr>
+<tr><td><code>compute_s</code></td><td>f64</td><td>Default 0.010 s. Step 0 runs <strong>before</strong> the first collective</td></tr>
+<tr><td><code>deadline_s</code> <span class="math">D_j</span></td><td>f64</td><td>Max acceptable <strong>one-collective</strong> <code>T_pred</code></td></tr>
+<tr><td><code>arrive_s</code></td><td>f64</td><td>Explicit. No Poisson</td></tr>
+</table>
+<p>If <code>deadline_s</code> omitted: <span class="math">D_j = 2 \cdot T(c_e(1-s))</span>, twice the isolated scratch-adjusted time.</p>
+<p>Linearized rank:</p>
+<pre><code>rank = pp_idx * (dp * tp) + dp_idx * tp + tp_idx</code></pre>
+<p><strong>Communicators.</strong></p>
+<ul><li>Ring AllReduce: one ring per <span class="math">(tp\_idx, pp\_idx)</span>. Ring size <span class="math">p = dp</span>. Members ordered by increasing <code>dp_idx</code>.</li><li>Pairwise AllToAll: one communicator per <span class="math">(tp\_idx, pp\_idx)</span>, size <span class="math">p = dp</span>. Direct-exchange algorithm, <span class="math">p-1</span> phases (NCCL-like). Phase <span class="math">h</span>: rank <span class="math">i</span> sends to <span class="math">i+h \pmod{p}</span>.</li></ul>
+<p>Intra-node edges (same <code>NodeId</code>) consume <strong>zero</strong> fabric links. If an entire communicator has no fabric edges: <code>T_pred = 0</code>, no α charged, CIR = 0. If a phase has ≥1 fabric flow, charge α once for that phase. That is fabric unused, not NVLink modeled as fabric.</p>
+<h3 id="8-2-closed-forms">8.2 Closed forms</h3>
+<p>Let <span class="math">p</span> = communicator size, <span class="math">\alpha = 10^{-6}\,\mathrm{s}</span>, <span class="math">\beta = 1/B_\mathrm{eff}</span>, <span class="math">B_\mathrm{eff}</span> in B/s.</p>
+<p><strong>Ring AllReduce</strong> (reduce-scatter + allgather):</p>
+<pre class='math'>T_\mathrm{ring} = 2(p-1)\alpha + \frac{2(p-1)}{p}\,\beta M</pre>
+<p><span class="math">M</span> = bytes per rank (the full vector). Chunk per phase = <span class="math">M/p</span>. Phases = <span class="math">2(p-1)</span>.</p>
+<p><strong>Pairwise AllToAll</strong>:</p>
+<pre class='math'>T_\mathrm{a2a} = (p-1)\alpha + \frac{p-1}{p}\,\beta M_\mathrm{tot}</pre>
+<p><span class="math">M_\mathrm{tot}</span> = full per-rank buffer (<code>payload_bytes</code>), <strong>including</strong> the unused self slot. Do not say “each rank sends <span class="math">M_\mathrm{tot}</span>”. Fabric send volume <span class="math">=(p-1)/p\,M_\mathrm{tot}</span>. Chunk per phase <span class="math">= M_\mathrm{tot}/p</span>. Phases <span class="math">= p-1</span>. Setting <code>chunk = payload/(p-1)</code> fails <code>model_a2a_8x64mib</code>.</p>
+<p>NCCL lower bound cited in the research (<span class="math">t = (S_\mathrm{payload}/B_\mathrm{eff})\cdot 2(n-1)/n</span> plus <span class="math">2(n-1)\alpha</span>) is the same ring formula with <span class="math">S_\mathrm{payload}=M</span>, <span class="math">n=p</span>. Do not confuse <span class="math">S_\mathrm{payload}</span> with spine count <span class="math">S</span>.</p>
+<p>If <span class="math">p &lt; 2</span>: no collective, <span class="math">T = 0</span>.</p>
+<p>If water-fill yields different <span class="math">B_\mathrm{eff}</span> per phase, <strong>do not</strong> use the closed form. Sum:</p>
+<pre class='math'>T = \sum_{\mathrm{phases}\ \phi} \left(\alpha + \frac{\mathrm{chunk}}{B_{\mathrm{eff},\phi}}\right)</pre>
+<p>When all <span class="math">B_{\mathrm{eff},\phi}</span> are equal this is identical to the closed form. Test <code>model_phase_sum_eq_closed</code> checks |Δ| ≤ 1 ps.</p>
+<h3 id="8-3-what-the-model-ignores">8.3 What the model ignores</h3>
+<table>
+<tr><th>Ignored</th><th>Why</th></tr>
+<tr><td>Kernel launch</td><td>Not a trainer</td></tr>
+<tr><td>NCCL proto header tax</td><td>Absorbed into α if ever calibrated</td></tr>
+<tr><td>PFC / DCQCN / multi-QP</td><td>Flow-level</td></tr>
+<tr><td>PXN</td><td>N6</td></tr>
+<tr><td>NCCL algo selection</td><td>Caller names the algo</td></tr>
+<tr><td>Congestion beyond the assigned bottleneck</td><td>Fluid residual only</td></tr>
+<tr><td>NVLink bandwidth</td><td>Intra-node T_fabric = 0</td></tr>
+</table>
+<p>NCCL one-point calibration is <strong>not</strong> a v1 CLI flag. Goldens and all runs use locked <span class="math">\alpha,\beta</span>. A post-v1 addendum may add <code>--calibrate</code>; until then those constants do not change.</p>
+<h3 id="8-4-phase-decomposition-simulator">8.4 Phase decomposition (simulator)</h3>
+<p>On <code>CollectiveStart</code> at time <span class="math">t</span>:</p>
+<ol><li>Build communicators from the binding (§13.2).</li><li>Assign <code>FlowId</code>s from a run-global <code>u64</code> counter in order <code>(comm.index, phase, src Rank)</code>. Intra-node edges get no FlowId.</li><li>For each communicator, for each phase <span class="math">\phi</span>: emit <code>FlowArrive</code> / <code>FlowDepart</code> for each directed <strong>fabric</strong> edge (not intra-node). Duration <span class="math">d_\phi = \alpha + \mathrm{chunk}/B_{\mathrm{eff},\phi}</span> (α only if the phase has ≥1 fabric flow). <span class="math">t_{\phi+1} = t_\phi + d_\phi</span>.</li><li><code>CollectiveEnd</code> at the max finish over communicators (last-flow).</li></ol>
+<p>Ring uses the same <span class="math">p</span> edges every phase. A2A phase <span class="math">h</span> uses the pairing <span class="math">i \to i+h</span>.</p>
+<p><strong>CIR reservation</strong> (admission leftover) on edge <span class="math">e</span>:</p>
+<pre class='math'>\rho_{j,e} = \max_{\phi} \sum_{f \in \phi,\, e \in \mathrm{path}(f)} \mathrm{rate}(f)</pre>
+<p>Phases are serial, so we reserve the <strong>worst-phase</strong> load, not the sum.</p>
+<h3 id="8-5-worked-example-b-ring-allreduce-p-8-m-64-mib">8.5 Worked Example B — Ring AllReduce, p=8, M=64 MiB</h3>
+<p>Given: <span class="math">p=8</span>, <span class="math">M=64\,\mathrm{MiB}=67\,108\,864\,\mathrm{B}</span>, <span class="math">B_\mathrm{eff}=50\,\mathrm{GB/s}=5\times 10^{10}\,\mathrm{B/s}</span>, <span class="math">\alpha=10^{-6}\,\mathrm{s}</span>.</p>
+<pre class='math'>\beta = \frac{1}{5\times 10^{10}} = 2.0\times 10^{-11}\,\mathrm{s/B} = 20\,\mathbf{ps}/\mathrm{B} = 0.02\,\mathrm{ns/B}</pre>
+<p>Latency term:</p>
+<pre class='math'>2(p-1)\alpha = 14 \times 10^{-6}\,\mathrm{s} = 14\,\mu\mathrm{s}</pre>
+<p>Bandwidth term:</p>
+<pre class='math'>\frac{2\cdot 7}{8}\cdot \beta \cdot M = 1.75 \cdot \frac{67\,108\,864}{5\times 10^{10}} = 1.75 \cdot 0.00134217728 = 0.00234881024\,\mathrm{s}</pre>
+<pre class='math'>T_\mathrm{ring} = 0.000014 + 0.00234881024 = 0.00236281024\,\mathrm{s} = 2362.81024\,\mu\mathrm{s}</pre>
+<p>Golden: <code>2_362_810_240</code> ps. (1 s = <span class="math">10^{12}</span> ps, so <span class="math">2362.81024\,\mu\mathrm{s} = 2\,362\,810\,240</span> ps. Display 2362.810 µs is truncated to 0.001 µs.)</p>
+<p><strong>Same payload, p=16</strong> (unit-test companion; Example C uses p=8):</p>
+<pre class='math'>T_\mathrm{ring}(16) = 30\,\mu\mathrm{s} + 1.875 \cdot 0.00134217728\,\mathrm{s} = 2546.5824\,\mu\mathrm{s} = 2\,546\,582\,400\,\mathrm{ps}</pre>
+<p><strong>A2A, p=8, <span class="math">M_\mathrm{tot}=64\,\mathrm{MiB}</span>, <span class="math">B_\mathrm{eff}=50\,\mathrm{GB/s}</span></strong></p>
+<pre class='math'>T_\mathrm{a2a} = 7\,\mu\mathrm{s} + 0.875 \cdot 0.00134217728\,\mathrm{s} = 1181.40512\,\mu\mathrm{s} = 1\,181\,405\,120\,\mathrm{ps}</pre>
+<p><strong>Scratch-adjusted isolated ring, p=8, <span class="math">B_\mathrm{eff}=47.5\,\mathrm{GB/s}</span></strong></p>
+<pre class='math'>T_\mathrm{ring}^{47.5} = 14\,\mu\mathrm{s} + 1.75 \cdot \frac{67\,108\,864}{4.75\times 10^{10}} = 2486.431831578947\,\mu\mathrm{s}</pre>
+<p>Exact: <span class="math">14\times 10^{-6} + 117440512 / 47500000000</span> s <span class="math">= 2\,486\,431\,831.578947</span> ps. Round to <strong>nearest</strong>, ties-to-even (<code>s_to_ps</code> rule). This value is not a tie; nearest is <code>2_486_431_832</code> ps. Display: 2486.432 µs.</p>
+<p><strong>Scratch-steal ring, p=8, <span class="math">B_\mathrm{eff}=2.5\,\mathrm{GB/s}</span></strong> (naive over-admit onto <span class="math">s \cdot c_e</span>):</p>
+<pre class='math'>T_\mathrm{ring}^{2.5} = 14\,\mu\mathrm{s} + 1.75 \cdot \frac{67\,108\,864}{2.5\times 10^9} = 46\,976.2048\,\mu\mathrm{s} \approx 46.976\,\mathrm{ms}</pre>
+<h3 id="8-6-worked-example-c-tiny-16-gpu-working-set-one-hot-rail">8.6 Worked Example C — tiny 16-GPU working set, one hot rail</h3>
+<p><strong>Fabric.</strong> <span class="math">N=64</span> (512 GPUs). LG0 = nodes <code>[0,32)</code>, LG1 = <code>[32,64)</code>. Different rails are different leaves (<code>LeafId = r * num_groups + group</code>). Same LG is <strong>not</strong> same leaf. Cross-rail hops are <code>Nic → Leaf_r → Spine → Leaf_r&#x27; → Nic</code> and use rail-<code>r&#x27;</code> LS downlinks.</p>
+<p><strong>Occupancy at J1 arrival</strong> (16 free GPUs; all others in <code>occ.by_gpu</code> or <code>Unavailable</code> on the graph):</p>
+<table>
+<tr><th>Group</th><th>GPUs</th><th>Residual</th></tr>
+<tr><td>H (hot)</td><td>rail 0, nodes <code>{0,1,2,3}</code> ∪ <code>{32,33,34,35}</code> (8)</td><td>Host <code>r_avail = 47.5 GB/s</code>. <strong>Every rail-0 LS directed edge</strong> (all spines, all parallels) has <code>r_avail = 0</code></td></tr>
+<tr><td>C (cool)</td><td>rail 1, nodes <code>{0,…,7}</code> (8)</td><td>Same leaf <code>Leaf r1 g0</code>. Host <code>r_avail = 47.5 GB/s</code></td></tr>
+</table>
+<p><strong>How the LS set is zeroed (constructible).</strong> Not a Ring/A2A job. Test/fixture API:</p>
+<pre><code>Residual::inject_cir(e, admissible(e))  // no GPU occupancy</code></pre>
+<p>Fixture <code>example-c</code> calls <code>inject_cir</code> on every directed rail-0 LS link. No parallel cable is left with leftover, so <code>Cost_e</code> cannot sneak FirstFitShift{0} onto a live pair. Golden <code>example-c</code> starts from this snapshot.</p>
+<p><strong>Jobs:</strong></p>
+<table>
+<tr><th>Job</th><th>arrive</th><th>gpu_count</th><th>dp,tp,pp</th><th>collective</th><th>M</th><th><span class="math">D_j</span></th></tr>
+<tr><td>J1</td><td>0</td><td>8</td><td>8,1,1</td><td>ring</td><td>64 MiB</td><td>3000 µs</td></tr>
+<tr><td>J2</td><td>0+ (next seq)</td><td>8</td><td>8,1,1</td><td>ring</td><td>64 MiB</td><td>3000 µs</td></tr>
+</table>
+<p>Same-rail leaf-local <code>T</code> at 47.5 GB/s = <strong>2486.432 µs ≤ 3000</strong>. Cross-rail onto rail-0 LS is infeasible for joint (<code>r_avail=0</code>). Naive water-fill on physical leftover <code>c_e−cir = 2.5 GB/s</code> gives <span class="math">T=46.976\,\mathrm{ms}</span>.</p>
+<p><strong>Naive.</strong> Scan NodeId then LocalRank. First 8 free: <code>n0r0, n0r1, …, n3r0, n3r1</code>. <code>rank_map</code> (<code>tp=1</code>) builds ring <code>n0r0 → n0r1 → n1r0 → …</code>. Four edges intra-node (empty path). Four edges <strong>cross-rail</strong> (<code>r1→r0</code> or <code>r0→r1</code>) ⇒ <code>sl≠dl</code> ⇒ each uses a rail-0 LS downlink with <code>r_avail=0</code>. GPU count ≥ 8 → <strong>ADMIT</strong>. Water-fill on <code>c_e−cir</code> yields 2.5 GB/s. <code>T_realized = 46.976 ms &gt;&gt; 3000 µs</code>. <strong>J1 SLO-miss.</strong></p>
+<p>J2 takes the rest (<code>n4r1…n7r1, n32r0…n35r0</code>). At least one edge crosses to leaf r0 g1. <strong>ADMIT.</strong> Same 2.5 GB/s LS. <strong>J2 SLO-miss.</strong></p>
+<p><strong>Joint.</strong> <code>FirstFitShift{0}</code> is the naive J1 set: four cross-rail fabric hops onto <code>r_avail=0</code> LS ⇒ <code>evaluate</code> returns <strong><code>ZeroLeftover</code></strong>. Not feasible, not cheaper.</p>
+<p><code>RailRotate{1}</code> picks group C: eight GPUs on <code>Leaf r1 g0</code>. Every ring hop is <code>[hs, hd]</code> (same leaf). <code>T_pred = 2486.432 µs ≤ 3000</code>. <strong>Only feasible size-8 binding.</strong> <strong>ADMIT J1</strong> as <code>RailRotate{1}</code>.</p>
+<p>After J1, free = H (rail 0, 4+4 across LG0/LG1). Every remaining size-8 binding uses a rail-0 LS edge. <strong>REJECT J2 <code>ZeroLeftover</code>.</strong> Free GPU count is 8; leftover on required paths is 0.</p>
+<table>
+<tr><th>Controller</th><th>J1</th><th>J2</th><th>SLO</th></tr>
+<tr><td>Naive</td><td>Admit mixed (cross-rail)</td><td>Admit split H</td><td><strong>J1 and J2 miss</strong> (46.976 ms)</td></tr>
+<tr><td>Joint</td><td>Admit <code>RailRotate{1}</code> (cool rail, same leaf)</td><td>Reject <code>ZeroLeftover</code></td><td>J1 meets; J2 refused</td></tr>
+</table>
+<p>Claim stands: free GPUs ≠ leftover fabric. Tests <code>joint_admit_cheapest_feasible</code> and <code>naive_may_overadmit</code> expect this table.</p>
+<hr>
+<h2 id="9-data-model">9. Data model</h2>
+<h3 id="9-1-ids-fabric-types">9.1 IDs (<code>fabric-types</code>)</h3>
+<pre><code>#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct NodeId(pub u32);
+pub struct GpuId(pub u32);
+pub struct NicId(pub u32);
+pub struct LeafId(pub u32);
+pub struct SpineId(pub u32);
+pub struct LinkId(pub u32);
+pub struct RailId(pub u8);
+pub struct JobId(pub u32);
+pub struct FlowId(pub u64);
+pub struct EpochId(pub u32);
+pub struct Rank(pub u32);
+pub struct AdmitSeq(pub u64); // assigned at successful admit, dense 0..
+
+/// Sim time. Never f64.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct SimTime {
+    pub ps: i128,
+    pub seq: u64, // monotonic insert counter; unique
+}</code></pre>
+<p><code>GpuId = n * R + r</code>. <code>NicId</code> equals <code>GpuId</code>. TOML <code>id</code> <strong>is</strong> <code>JobId</code>; never reassigned.</p>
+<h3 id="9-2-enums">9.2 Enums</h3>
+<pre><code>#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum CollectiveKind { RingAllReduce, PairwiseAllToAll }
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Policy { Naive, Joint }
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum BindingKind {
+    NaiveFirstFit,                       // naive only; parquet column
+    FirstFitShift { skip_free_gpus: u8 }, // 0, R, 2R, … — skip i*R free GPUs
+    RailRotate { start_rail: u8 },        // 0..7
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum RejectCode {
+    NoFreeGpus,           // free &lt; p
+    FragmentedGpus,       // free ≥ p but no binding of size p
+    ResidualExhausted,    // water-fill cannot meet a required flow at &gt; 0
+    SloMiss,              // all bindings have T_pred &gt; D_j
+    CrossRailUnsupported, // only if allow_cross_rail=false (v1 default true; reserved)
+    DeadElementOnPath,    // every binding uses a failed element
+    EpochPrepareFailed,   // 2PC prepare abort
+    MixDoesNotFit,        // isolated T_pred &gt; D_j or p &gt; G_tot
+    OddRingDegenerate,    // reserved; p&lt;2 is T=0, not this code
+    ZeroLeftover,         // free GPUs exist, r_avail=0 on every candidate path
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[repr(i32)]
+pub enum ProcessExit {
+    Ok = 0,
+    Usage = 1,
+    BadInput = 2,
+    InvariantFail = 3,
+    MixDoesNotFit = 4,
+    IoAbort = 5,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum EventKind {
+    JobArrive,
+    StepBoundary,
+    CollectiveStart,
+    CollectiveEnd,
+    FlowArrive,
+    FlowDepart,
+    RateRecompute,
+    LinkFail,
+    LeafFail,
+    RailFail,
+    SpineFail,
+    DrainComplete,
+    EpochAdvance,
+    HorizonCut,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum EventPayload {
+    JobArrive { job: JobId },
+    StepBoundary { job: JobId, step: u32 },
+    CollectiveStart { job: JobId, step: u32 },
+    CollectiveEnd { job: JobId, step: u32 },
+    FlowArrive { flow: FlowId },
+    FlowDepart { flow: FlowId },
+    RateRecompute { reason: RecomputeReason },
+    LinkFail { link: LinkId },
+    LeafFail { leaf: LeafId },
+    RailFail { rail: RailId },
+    SpineFail { spine: SpineId },
+    DrainComplete { job: JobId },
+    EpochAdvance { from: EpochId, to: EpochId },
+    HorizonCut,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum RecomputeReason { Admit(JobId), JobExit(JobId), EpochCommit }
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Endpoint { Nic(NicId), Leaf(LeafId), Spine(SpineId) }
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum GpuAvail {
+    Present,
+    Unavailable(UnavailReason),
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum UnavailReason { FailedNic, AbsentRow }
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum JobState {
+    Queued, Admitted, Computing, Collecting, Completed, Killed, Rejected,
+}</code></pre>
+<p><code>EventKind</code> is a <strong>closed</strong> set of <strong>14</strong> variants. Admits, rejects, kills are <strong>trace records</strong> (and <code>admit.jsonl</code> rows), not FEL events. <code>EventPayload</code> is 1:1 with <code>EventKind</code>; a mismatched pair is I3-class (<code>E_INV</code>).</p>
+<h3 id="9-3-graph-and-residual">9.3 Graph and residual</h3>
+<pre><code>pub struct Node {
+    pub id: NodeId,
+    pub gpus: Vec&lt;GpuId&gt;, // length R, local rank order
+    pub present: bool,    // false after delay-row
+}
+pub struct Gpu {
+    pub id: GpuId,
+    pub node: NodeId,
+    pub rail: RailId,
+    pub nic: NicId,
+    pub avail: GpuAvail, // Present | Unavailable. Never Occupied — that is Occupancy
+}
+pub struct Leaf {
+    pub id: LeafId,
+    pub rail: RailId,
+    pub group: u32,
+    pub failed: bool,
+}
+pub struct Spine { pub id: SpineId, pub failed: bool }
+
+pub struct Link {
+    pub id: LinkId,
+    pub src: Endpoint,
+    pub dst: Endpoint,
+    pub capacity_Bps: u64, // bytes/s (SI). 400 Gbps → 50_000_000_000
+    pub scratch: f64,      // 0.05
+    pub failed: bool,
+    pub bytes_this_epoch: u64, // I2: must be 0 if failed
+}
+
+pub struct Graph {
+    pub epoch: EpochId,
+    pub params: TopoParams,
+    pub nodes: Vec&lt;Node&gt;,
+    pub gpus: Vec&lt;Gpu&gt;,
+    pub leaves: Vec&lt;Leaf&gt;,
+    pub spines: Vec&lt;Spine&gt;,
+    pub links: Vec&lt;Link&gt;, // index == LinkId.0
+}
+
+pub struct Residual {
+    pub cir: Vec&lt;u64&gt;,        // B/s, per directed link
+    pub r_avail: Vec&lt;u64&gt;,    // admissible - cir, or 0 if failed
+    pub q_bytes: Vec&lt;u64&gt;,
+    pub overflowed: Vec&lt;bool&gt;,
+}
+impl Residual {
+    pub fn inject_cir(&amp;mut self, e: LinkId, rho: u64); // Example C fixture; no GPU occupy
+}
+
+pub struct TopoParams {
+    pub nodes: u32,
+    pub gpus_per_node: u32, // = 8
+    pub rails: u32,         // = 8
+    pub leaf_radix: u32,    // = 64
+    pub down: u32,          // = 32
+    pub up: u32,            // = 32 / K_omega
+    pub port_speed_gbps: u32, // = 400
+    pub scratch: f64,       // = 0.05
+    pub fill: f64,          // = 1.0
+    pub allow_cross_rail: bool, // = true
+    pub buffer_bytes: u64,  // = 33_554_432
+    pub buffer_infinite: bool,  // = false
+}</code></pre>
+<p><code>r_avail</code> is stored as <code>u64</code> B/s. Compute in integer: <code>alloc = capacity_Bps <em> 95 / 100</code> (not f64×). Test that <code>50_000_000_000 </em> 95 / 100 = 47_500_000_000</code> and scratch <code>= 2_500_000_000</code>.</p>
+<h3 id="9-4-job-binding-flow">9.4 Job / binding / flow</h3>
+<pre><code>pub struct JobSpec {
+    pub id: JobId,
+    pub arrive: SimTime,
+    pub gpu_count: u32,
+    pub dp: u32,
+    pub tp: u32,
+    pub pp: u32,
+    pub collective: CollectiveKind,
+    pub payload_bytes: u64,
+    pub step_count: u32,
+    pub compute_ps: i128,
+    pub deadline_ps: i128, // D_j
+}
+
+pub struct Binding {
+    pub kind: BindingKind,
+    pub map: Vec&lt;(Rank, GpuId)&gt;, // len = gpu_count, ranks 0..p-1
+}
+
+pub struct Path {
+    pub links: Vec&lt;LinkId&gt;, // empty iff same node
+}
+
+pub struct Flow {
+    pub id: FlowId,
+    pub job: JobId,
+    pub phase: u32,
+    pub src: GpuId,
+    pub dst: GpuId,
+    pub path: Path,
+    pub rate_Bps: u64, // bytes/s
+    pub bytes: u64,
+}
+
+pub struct JobRec {
+    pub spec: JobSpec,
+    pub state: JobState,
+    pub admit_seq: Option&lt;AdmitSeq&gt;,
+    pub binding: Option&lt;Binding&gt;,
+    pub paths: Vec&lt;Path&gt;,
+    pub cir: BTreeMap&lt;LinkId, u64&gt;,
+    pub t_pred_ps: i128,
+    pub step_index: u32,  // step about to start or in flight
+    pub steps_done: u32,  // incremented only on CollectiveEnd that is not a fail-restart
+    pub reject: Option&lt;RejectCode&gt;,
+}
+
+pub struct Occupancy {
+    pub by_gpu: BTreeMap&lt;GpuId, JobId&gt;, // live bindings only
+}
+impl Occupancy {
+    pub fn is_free(&amp;self, g: GpuId, graph: &amp;Graph) -&gt; bool {
+        graph.gpus[g].avail == GpuAvail::Present &amp;&amp; !self.by_gpu.contains_key(&amp;g)
+    }
+}
+
+pub struct JobTable {
+    pub by_id: BTreeMap&lt;JobId, JobRec&gt;,
+    pub next_admit_seq: u64,
+    pub occ: Occupancy,
+}
+
+pub struct Communicator {
+    pub index: u32,
+    pub kind: CollectiveKind,
+    pub members: Vec&lt;GpuId&gt;, // length p, ring/A2A order
+    pub p: u32,
+    pub chunk_bytes: u64,
+    pub n_phases: u32,
+}
+impl Communicator {
+    pub fn edges(&amp;self, phase: u32) -&gt; Vec&lt;(GpuId, GpuId)&gt;;
+}
+
+pub struct Fel {
+    heap: BinaryHeap&lt;Reverse&lt;Event&gt;&gt;,
+    next_seq: u64,
+}
+impl Fel {
+    pub fn new() -&gt; Self;
+    pub fn push(&amp;mut self, ps: i128, kind: EventKind, payload: EventPayload); // seq = next_seq++
+    pub fn pop(&amp;mut self) -&gt; Option&lt;Event&gt;;
+    pub fn peek_ps(&amp;self) -&gt; Option&lt;i128&gt;;
+    pub fn drain_fails_at(&amp;mut self, ps: i128) -&gt; Vec&lt;Event&gt;; // coalesce Fail* at ps
+}</code></pre>
+<p><strong>Occupancy law.</strong> <code>Graph</code> is epoch-immutable. <code>Gpu.avail</code> is <code>Present</code> or <code>Unavailable(FailedNic|AbsentRow)</code> — set at construct or 2PC, never on admit/exit. Live ownership is <code>JobTable.occ</code>. A GPU is <strong>free</strong> iff <code>occ.is_free(g, graph)</code>. Dummy <code>Occupied(JobId(0))</code> does not exist. A binding that names <code>Unavailable</code> → <code>DeadElementOnPath</code>.</p>
+<h3 id="9-5-topo-toml">9.5 Topo TOML</h3>
+<pre><code># fixtures/topo/n32.toml  (also generated by `fabric-te topo`)
+kind = &quot;rail_clos_2tier&quot;
+gpus = 256                 # G_tot
+rails = 8
+oversub = 1
+leaf_radix = 64
+down = 32
+port_speed_gbps = 400
+scratch = 0.05
+fill = 1.0
+allow_cross_rail = true
+buffer_bytes = 33554432
+buffer_infinite = false</code></pre>
+<p>Unknown keys = exit 2. <code>nodes</code> is not a field; derive <code>N = gpus / rails</code>.</p>
+<h3 id="9-6-mix-toml">9.6 Mix TOML</h3>
+<pre><code># fixtures/mix/default-512.toml
+seed = 1
+horizon_s = 60.0
+
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 16
+dp = 2
+tp = 8
+pp = 1
+collective = &quot;ring_allreduce&quot;
+payload_bytes = 67108864
+step_count = 100
+compute_s = 0.010
+deadline_s = 0.005
+
+[[pattern]]
+name = &quot;steady-dp&quot;
+every_s = 1.0
+count = 20
+start_s = 0.5
+start_id = 100
+gpu_count = 16
+dp = 2
+tp = 8
+pp = 1
+collective = &quot;ring_allreduce&quot;
+payload_bytes = 67108864
+step_count = 50
+compute_s = 0.010
+deadline_s = 0.005</code></pre>
+<p>Pattern expansion: emit jobs <code>id = start_id + i</code> at <code>start_s + i * every_s</code> for <code>i in 0..count</code>. <strong>Keep those ids.</strong> No dense reassignment. No jitter field (unknown key → exit 2).</p>
+<p><strong>Load order.</strong> Flatten <code>[[jobs]]</code> then expanded <code>[[pattern]]</code> rows, recording <code>file_index</code> in file order. Sort <code>(arrive_ps, file_index)</code>. Assign FEL <code>seq</code> in that sorted order. Admit FIFO by that seq. <code>RateRecompute</code> replay walks <strong>admit-seq</strong> (not raw <code>JobId</code>).</p>
+<p>Static load checks:</p>
+<ul><li><code>dp<em>tp</em>pp != gpu_count</code> → exit 2 <code>E_SCHEMA</code></li><li><code>gpu_count &gt; G_tot</code> → exit 4 <code>MixDoesNotFit</code> (PR3 takes <code>--gpus G_TOT</code> or a builtin so this check does not need <code>fabric-topo</code>)</li><li>isolated <code>T_pred</code> at <span class="math">B_\mathrm{eff}=c_e(1-s)=47.5\,\mathrm{GB/s}</span> on a <strong>full-fabric</strong> ring (do not assume intra-node) &gt; <code>deadline_s</code> → exit 4. Isolated T is <strong>always</strong> at 47.5 GB/s, <strong>never</strong> 50. Conservative: a <code>p=R</code> job that would sit on one node (<code>T=0</code>) can still fail this check. There is <strong>no</strong> bypass.</li></ul>
+<h3 id="9-7-parquet-columns">9.7 Parquet columns</h3>
+<p><strong><code>events.parquet</code></strong></p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Null</th></tr>
+<tr><td>t_ps</td><td>i64</td><td>no</td></tr>
+<tr><td>seq</td><td>u64</td><td>no</td></tr>
+<tr><td>kind</td><td>utf8</td><td>no</td></tr>
+<tr><td>epoch</td><td>u32</td><td>no</td></tr>
+<tr><td>job_id</td><td>u32</td><td>yes</td></tr>
+<tr><td>flow_id</td><td>u64</td><td>yes</td></tr>
+<tr><td>link_id</td><td>u32</td><td>yes</td></tr>
+<tr><td>spine_id</td><td>u32</td><td>yes</td></tr>
+<tr><td>leaf_id</td><td>u32</td><td>yes</td></tr>
+<tr><td>rail_id</td><td>u8</td><td>yes</td></tr>
+<tr><td>reject</td><td>utf8</td><td>yes</td></tr>
+<tr><td>bytes</td><td>u64</td><td>yes</td></tr>
+</table>
+<p>Horizon ≪ 106 days, so i64 ps is enough on disk. Memory clock stays i128.</p>
+<p><strong><code>flows.parquet</code></strong>: <code>flow_id, job_id, phase, src_gpu, dst_gpu, path_links (list&lt;u32&gt;), rate_Bps, bytes, t_arrive_ps, t_depart_ps</code>.</p>
+<p><strong><code>links.parquet</code></strong>: snapshot on every <code>RateRecompute</code> and every 1 ms (10 ms if <span class="math">G_\mathrm{tot}&gt;2048</span>), cap 50_000 rows/link then stride. Columns: <code>link_id, t_ps, c_Bps, cir_Bps, r_avail_Bps, q_bytes, failed</code>.</p>
+<p><strong><code>jobs.parquet</code></strong>: <code>job_id, arrive_ps, exit_ps, decision (admit|reject|kill), reject, binding_kind, t_pred_ps, d_j_ps, steps_done</code>. Naive writes <code>binding_kind = &quot;NaiveFirstFit&quot;</code>.</p>
+<p><strong><code>admit.jsonl</code></strong> (one JSON object per decision, written at admit/reject time; <code>--explain</code> <strong>reads this file</strong>, no leftover reconstruction):</p>
+<pre><code>{&quot;job_id&quot;,&quot;admit_seq&quot;,&quot;policy&quot;,&quot;decision&quot;,&quot;reject&quot;,&quot;free_at_arrive&quot;,
+ &quot;bindings_evaluated&quot;,
+ &quot;per_binding&quot;:[{&quot;kind&quot;,&quot;gpu_ids&quot;,&quot;cost&quot;,&quot;T_pred_ps&quot;,&quot;D_j_ps&quot;,&quot;code&quot;,&quot;phase0_links&quot;}],
+ &quot;chosen&quot;:{&quot;index&quot;,&quot;kind&quot;,&quot;map&quot;:[[&quot;rank&quot;,&quot;gpu&quot;]]},
+ &quot;per_link&quot;:[{&quot;link_id&quot;,&quot;c_Bps&quot;,&quot;cir_Bps&quot;,&quot;r_avail_Bps&quot;,&quot;cost_e&quot;,&quot;rho_job&quot;}],
+ &quot;waterfill&quot;:[{&quot;ord&quot;,&quot;rate_Bps&quot;}],
+ &quot;B_eff_Bps&quot;,&quot;T_pred_ps&quot;,&quot;D_j_ps&quot;,
+ &quot;naive_compare&quot;:{&quot;gpu_ids&quot;,&quot;T_pred_ps&quot;,&quot;would_miss_slo&quot;}}</code></pre>
+<h3 id="9-8-report-json-schema">9.8 <code>report.json</code> schema</h3>
+<pre><code>{
+  &quot;spec_version&quot;: &quot;0.1&quot;,
+  &quot;seed&quot;: 1,
+  &quot;policy&quot;: &quot;joint&quot;,
+  &quot;topo&quot;: { &quot;gpus&quot;: 256, &quot;N&quot;: 32, &quot;L&quot;: 8, &quot;S&quot;: 4, &quot;E_host&quot;: 256, &quot;E_ls&quot;: 256, &quot;B_bisect_gbps&quot;: 51200 },
+  &quot;mix_hash&quot;: &quot;sha256:&lt;raw mix file bytes&gt;&quot;,
+  &quot;topo_hash&quot;: &quot;sha256:&lt;raw topo file bytes&gt;&quot;,
+  &quot;horizon_ps&quot;: 60000000000000,
+  &quot;counts&quot;: {
+    &quot;arrivals&quot;: 0, &quot;admits&quot;: 0, &quot;rejects&quot;: 0, &quot;kills&quot;: 0,
+    &quot;completes&quot;: 0, &quot;slo_misses&quot;: 0
+  },
+  &quot;rejects_by_code&quot;: {
+    &quot;NoFreeGpus&quot;: 0, &quot;FragmentedGpus&quot;: 0, &quot;ResidualExhausted&quot;: 0,
+    &quot;SloMiss&quot;: 0, &quot;CrossRailUnsupported&quot;: 0, &quot;DeadElementOnPath&quot;: 0,
+    &quot;EpochPrepareFailed&quot;: 0, &quot;MixDoesNotFit&quot;: 0, &quot;OddRingDegenerate&quot;: 0,
+    &quot;ZeroLeftover&quot;: 0
+  },
+  &quot;metrics&quot;: {
+    &quot;hotspot_us&quot;: 0,
+    &quot;hotspot_threshold_ppm&quot;: 800000,
+    &quot;completions_by_deadline&quot;: 0,
+    &quot;tail_collective_us_p99&quot;: 0,
+    &quot;last_flow_collective_us_max&quot;: 0,
+    &quot;slo_miss_us&quot;: 0,
+    &quot;disrupted_step_us&quot;: 0,
+    &quot;mean_link_util_ppm&quot;: 0
+  },
+  &quot;jobs&quot;: [],
+  &quot;fails&quot;: [],
+  &quot;invariants_ok&quot;: true
+}</code></pre>
+<p><code>mean_link_util_ppm</code> is recorded and <strong>forbidden</strong> as a pass/fail figure of merit. All metric fields are <strong>integers</strong> (microseconds or ppm). <code>rejects_by_code</code> is a complete map: every <code>RejectCode</code> variant is present even when the count is 0. Hashes are SHA-256 of the raw input file bytes (not canonicalized TOML).</p>
+<h3 id="9-9-report-html">9.9 <code>report.html</code></h3>
+<p>Black text, white background, 1 px borders, semantic <code>&lt;table&gt;</code> + <code>&lt;caption&gt;</code> only. No canvas, no SVG map, no JavaScript required. Sections: summary, jobs, rejects, hot links, failures, planner (if any). Printable.</p>
+<hr>
+<h2 id="10-discrete-event-runtime">10. Discrete-event runtime</h2>
+<h3 id="10-1-clock-and-fel">10.1 Clock and FEL</h3>
+<pre><code>// fabric-sim
+pub struct Event { pub t: SimTime, pub kind: EventKind, pub payload: EventPayload }
+// Ord: (ps asc, seq asc). seq assigned at push from Fel::next_seq.</code></pre>
+<p>Single binary heap. No peek-mutate. Schedule-at-same-t gets a new seq. Default seed 1 is stored in <code>meta.toml</code>; the FEL itself is not random.</p>
+<p>Convert: <code>s_to_ps(x) = round(x * 1e12) as i128</code> with <code>round</code> = IEEE ties-to-even on the integer number of picoseconds. Mix files use decimal seconds; goldens pin the rounded ps.</p>
+<h3 id="10-2-event-catalog">10.2 Event catalog</h3>
+<table>
+<tr><th>Event</th><th>Emitter</th><th>Mutates</th><th>Must not</th></tr>
+<tr><td><code>JobArrive</code></td><td>mix loader at start</td><td>admit queue; then JobTable + Residual if admit</td><td>Start flows before admit; mutate <code>Graph</code> occupancy</td></tr>
+<tr><td><code>StepBoundary</code></td><td>admit: at <code>arrive+compute_ps</code>; later: <code>CollectiveEnd</code></td><td><code>Computing → Collecting</code>; schedules <code>CollectiveStart</code> now</td><td>Touch residual; skip compute</td></tr>
+<tr><td><code>CollectiveStart</code></td><td><code>StepBoundary</code></td><td>builds flows; assigns <code>FlowId</code>s; schedules <code>FlowArrive</code></td><td>Re-admit; double-add CIR</td></tr>
+<tr><td><code>FlowArrive</code></td><td><code>CollectiveStart</code> / next phase</td><td>live flow set; <code>q_bytes</code></td><td>Change CIR</td></tr>
+<tr><td><code>FlowDepart</code></td><td><code>FlowArrive</code> handler</td><td>live flow set; <code>bytes_this_epoch</code></td><td>Free CIR until job exit</td></tr>
+<tr><td><code>CollectiveEnd</code></td><td>last <code>FlowDepart</code> of the step</td><td><code>steps_done += 1</code> (not on fail-restart). More steps: <code>Computing</code>, <code>StepBoundary</code> at <code>now+compute_ps</code>. Last step: <code>Completed</code>, release CIR, <code>occ</code> drop. <strong>No trailing compute</strong></td><td>Schedule <code>StepBoundary</code> at <code>now+0</code></td></tr>
+<tr><td><code>RateRecompute</code></td><td>admit, job exit, epoch commit</td><td>After <strong>admit</strong>: realized rates only, CIR caps unchanged. After <strong>exit/fail</strong>: clear CIR, replay live jobs in admit-seq. Then <strong>scale</strong> live rates so <span class="math">\sum\mathrm{rate}\le c_e</span> (I1). May mark SLO-miss</td><td>Change bindings except after fail</td></tr>
+<tr><td><code>LinkFail</code></td><td>CLI <code>--fail link=</code></td><td>coalesce same-ps Fail*; 2PC (§14)</td><td>Treat a leaf fail as a bundle of these</td></tr>
+<tr><td><code>LeafFail</code></td><td>CLI <code>--fail leaf=</code></td><td>2PC; <strong>kill</strong> every job with a GPU on that leaf</td><td>Reroute as if LS-only</td></tr>
+<tr><td><code>RailFail</code></td><td>CLI <code>--fail rail=</code></td><td>2PC; kill jobs on that rail</td><td></td></tr>
+<tr><td><code>SpineFail</code></td><td>CLI <code>--fail spine=</code></td><td>2PC; reroute-or-kill</td><td></td></tr>
+<tr><td><code>DrainComplete</code></td><td>2PC commit, one per killed job</td><td><strong>Trace only.</strong> CIR already handled by RateRecompute</td><td>Release CIR again</td></tr>
+<tr><td><code>EpochAdvance</code></td><td>2PC commit last step</td><td><code>EpochId += 1</code></td><td>Leave two live graphs</td></tr>
+<tr><td><code>HorizonCut</code></td><td>mix <code>horizon_s</code></td><td>kill every live job. If <code>Computing</code>: <code>disrupted_step_us += 0</code>. If <code>Collecting</code>: charge aborted prefix. RateRecompute</td><td>Invent a 15th EventKind</td></tr>
+</table>
+<p><strong>Closed set of 14.</strong> No other <code>EventKind</code> variants.</p>
+<p><strong>Coalesce.</strong> At most one <code>RateRecompute</code> queued at a given <code>ps</code>. If one is pending, do not push another.</p>
+<h3 id="10-3-job-lifecycle-sequence">10.3 Job lifecycle sequence</h3>
+<div class="figure"><svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Job lifecycle">
+  <rect x="1" y="1" width="718" height="218" fill="#fff" stroke="#000"/>
+  <text x="360" y="18" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 5. Job lifecycle. Reject leaves no CIR.</text>
+  <rect x="20" y="40" width="80" height="28" fill="#fff" stroke="#000"/>
+  <text x="60" y="58" text-anchor="middle" font-size="11" font-family="Georgia,serif">JobArrive</text>
+  <rect x="130" y="40" width="70" height="28" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="165" y="58" text-anchor="middle" font-size="11" font-family="Georgia,serif">Admit</text>
+  <rect x="240" y="16" width="90" height="28" fill="#fff" stroke="#000"/>
+  <text x="285" y="34" text-anchor="middle" font-size="11" font-family="Georgia,serif">RejectCode</text>
+  <rect x="240" y="64" width="80" height="28" fill="#fff" stroke="#000"/>
+  <text x="280" y="82" text-anchor="middle" font-size="11" font-family="Georgia,serif">Install CIR</text>
+  <rect x="350" y="64" width="90" height="28" fill="#fff" stroke="#000"/>
+  <text x="395" y="82" text-anchor="middle" font-size="11" font-family="Georgia,serif">StepBoundary</text>
+  <rect x="470" y="64" width="100" height="28" fill="#fff" stroke="#000"/>
+  <text x="520" y="82" text-anchor="middle" font-size="11" font-family="Georgia,serif">Collective*</text>
+  <rect x="600" y="64" width="96" height="28" fill="#fff" stroke="#000"/>
+  <text x="648" y="82" text-anchor="middle" font-size="11" font-family="Georgia,serif">Release CIR</text>
+  <polygon points="104,54 124,54 124,48 140,58 124,68 124,62 104,62" fill="#000"/>
+  <line x1="165" y1="40" x2="240" y2="30" stroke="#000"/>
+  <line x1="200" y1="68" x2="240" y2="78" stroke="#000"/>
+  <polygon points="324,78 344,78 344,72 360,82 344,92 344,86 324,86" fill="#000"/>
+  <polygon points="444,78 464,78 464,72 480,82 464,92 464,86 444,86" fill="#000"/>
+  <polygon points="574,78 594,78 594,72 610,82 594,92 594,86 574,86" fill="#000"/>
+  <text x="360" y="130" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Compute (step 0) happens before the first collective. Later steps: CollectiveEnd then compute then next StepBoundary.</text>
+  <text x="360" y="160" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">States: Admitted → Computing → Collecting → (repeat) → Completed | Killed | Rejected.</text>
+  <text x="360" y="200" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Flows: CollectiveStart emits FlowArrive / FlowDepart per fabric edge per phase.</text>
+</svg></div>
+<h3 id="10-4-jobarrive-handler-exact">10.4 JobArrive handler (exact)</h3>
+<pre><code>on JobArrive(j):
+  admit_q.push_back(j)          // already ordered by (ps, seq)
+  while q not empty:
+    job = q.pop_front()
+    match policy:
+      Naive =&gt; naive_admit(job)  // §12
+      Joint =&gt; joint_admit(job)  // §13
+    if Admit:
+      state = Admitted then immediately Computing
+      occ.by_gpu insert binding; install CIR; write admit.jsonl
+      schedule StepBoundary(step=0) at arrive_ps + compute_ps
+    if Reject: state = Rejected; write jobs.parquet + admit.jsonl; do not occupy</code></pre>
+<p>Same-timestamp arrivals are FIFO by seq. Each admit sees <code>occ</code> of the previous. Step 0 <strong>compute</strong> is the gap <code>[arrive, arrive+compute_ps)</code> in <code>Computing</code>. First collective starts at <code>arrive+compute_ps</code>.</p>
+<p><strong><code>JobState</code> transitions (locked):</strong></p>
+<table>
+<tr><th>From</th><th>Event</th><th>To</th></tr>
+<tr><td>Queued</td><td>admit</td><td><code>Admitted</code> then immediately <code>Computing</code></td></tr>
+<tr><td>Queued</td><td>reject</td><td><code>Rejected</code></td></tr>
+<tr><td>Computing</td><td><code>StepBoundary</code></td><td><code>Collecting</code></td></tr>
+<tr><td>Collecting</td><td><code>CollectiveEnd</code>, more steps</td><td><code>Computing</code></td></tr>
+<tr><td>Collecting</td><td><code>CollectiveEnd</code>, last step</td><td><code>Completed</code></td></tr>
+<tr><td>Computing</td><td><code>HorizonCut</code></td><td><code>Killed</code>, <code>disrupted_step_us += 0</code></td></tr>
+<tr><td>Collecting</td><td><code>HorizonCut</code> / fail-kill</td><td><code>Killed</code>, charge aborted prefix</td></tr>
+<tr><td>*</td><td>fail-kill</td><td><code>Killed</code></td></tr>
+</table>
+<h3 id="10-5-fluid-queue">10.5 Fluid queue</h3>
+<p>Default finite. For each directed link, <span class="math">q_e \in [0, B_\mathrm{buf}]</span>, <span class="math">B_\mathrm{buf}=32\,\mathrm{MiB}</span>.</p>
+<pre class='math'>\frac{dq_e}{dt} = \sum_{f \ni e} \mathrm{rate}(f) - c_e</pre>
+<p>Integrate analytically between events (piecewise constant rates). Clamp to <code>[0, B_buf]</code>. If the clamp is hit, set <code>overflowed=true</code>. Admission <strong>ignores</strong> <span class="math">q</span>.</p>
+<p><strong>v1: queue delay is report-only.</strong> Record <code>queue_delay_us = q_{e^\star} / c_{e^\star}</code> (integer µs) on the collective row. Do <strong>not</strong> add it to <code>d_φ</code>, <code>FlowDepart</code>, or <code>T_realized</code>. <code>CollectiveEnd − CollectiveStart</code> ignores <span class="math">q</span>. <code>buffer_infinite=true</code> disables the clamp only.</p>
+<hr>
+<h2 id="11-residual-accounting-and-rate-allocation">11. Residual accounting and rate allocation</h2>
+<h3 id="11-1-two-leftovers">11.1 Two leftovers</h3>
+<table>
+<tr><th>Name</th><th>Formula</th><th>v1 use</th></tr>
+<tr><td>Instant leftover</td><td><span class="math">c_e - \sum \mathrm{rate}(f,t)</span></td><td>Telemetry, queue, realized T</td></tr>
+<tr><td>Admission leftover (CIR)</td><td><span class="math">r_e^\mathrm{avail}(t)=c_e(1-s)-\sum_j \rho_{j,e}</span></td><td>Admit / reject / planner</td></tr>
+</table>
+<p>v1 <strong>admits on CIR</strong>. Failed link: <code>c_e</code> treated as 0, <code>r_avail = 0</code>.</p>
+<p>Integer form:</p>
+<pre><code>admissible(e) = if failed { 0 } else { capacity_Bps * 95 / 100 }
+r_avail(e)    = admissible(e).saturating_sub(cir[e])</code></pre>
+<h3 id="11-2-cost">11.2 Cost</h3>
+<pre class='math'>\mathrm{Cost}_e = \frac{1}{r_e^\mathrm{avail}+\varepsilon},\quad \varepsilon = 10^{-12}\, c_e</pre>
+<p>Compute in f64 only for ranking. Do not store cost as the residual.</p>
+<p>If <code>r_avail = 0</code>, cost is <span class="math">1/\varepsilon</span>, effectively infinite. A path with any such edge is illegal for joint.</p>
+<h3 id="11-3-k-shortest-clos-enumeration-k-8">11.3 k-shortest (Clos enumeration, k=8)</h3>
+<p><strong>Do not run general Yen in v1.</strong></p>
+<pre><code>fn k_shortest(src: GpuId, dst: GpuId, g: &amp;Graph, res: &amp;Residual, k: usize=8) -&gt; Vec&lt;Path&gt;:
+  if node(src)==node(dst): return [Path::empty()]
+  sl, dl = leaf(src), leaf(dst)
+  hs = host_up(src); hd = host_down(dst)
+  if hs.failed or hd.failed: return []
+  if sl==dl:
+    return [Path{links:[hs, hd]}]
+  cands = []
+  for spine in common_spines(sl, dl) in SpineId order:
+    ups   = Leaf→Spine cables (sl, spine), sort LinkId
+    downs = Spine→Leaf cables (spine, dl), sort LinkId
+    # ZIP, not Cartesian: pair ups[i] with downs[i], i &lt; min(len)
+    for (u, d) in zip(ups, downs):
+      if any of {hs,u,d,hd} failed: skip
+      path = [hs, u, d, hd]
+      cost = sum Cost_e
+      cands.push((cost, spine, u, d, path))
+  sort cands by (cost, SpineId, LinkId_up, LinkId_down)
+  return first k paths</code></pre>
+<p><strong>Admit uses <code>ks[0]</code> only.</strong> Extra paths (up to k=8) are stored on <code>admit.jsonl</code> for <code>--explain</code>. ECMP (naive) uses the same enumerator with <code>Cost_e = 1</code> and picks the first after sort by <code>(hops, SpineId, LinkId_up, LinkId_down)</code>.</p>
+<h3 id="11-4-water-fill-max-min-one-job-on-residual">11.4 Water-fill (max-min, one job on residual)</h3>
+<p>Existing jobs&#x27; CIR is sacred at admit time. Only the candidate job&#x27;s phase flows fill on <code>r_avail</code>.</p>
+<pre><code>fn water_fill(flows, r_avail) -&gt; Result&lt;Vec&lt;u64&gt;, RejectCode&gt;:
+  # flows already ordered (comm_index, phase, src Rank) — same order FlowId will take
+  rate = [0u64; n]; sat = [false; n]; rem = r_avail.clone()
+  loop:
+    active = { f | !sat[f] }
+    if active empty: break
+    bottleneck = min over f in active of min_e rem[e] / count_active_on(e)   # floor
+    if bottleneck == 0: break   # do NOT return; crumb pass next
+    for f in active: rate[f] += bottleneck
+    for e: rem[e] -= bottleneck * count_active_on(e)
+    mark f sat if some e on path has rem[e]==0
+  # crumb pass: +1 B/s in flow-order until no active flow can take 1 B/s
+  loop:
+    progressed = false
+    for f in 0..n:   # (comm, phase, src Rank)
+      if sat[f]: continue
+      if all e in path(f) have rem[e] &gt;= 1:
+        rate[f] += 1
+        for e in path(f): rem[e] -= 1
+        progressed = true
+        if some e on path rem[e]==0: sat[f] = true
+    if !progressed: break
+  if all rate==0 and n&gt;0: return Err(ZeroLeftover)
+  if some rate==0: return Err(ResidualExhausted)
+  return Ok(rate)</code></pre>
+<p>Empty <code>flows</code> (intra-node communicator) returns <code>Ok([])</code> — not an error.</p>
+<p><strong>Recompute (post-exit / post-fail).</strong> Clear all CIR. Replay water-fill for live jobs in increasing <strong>admit-seq</strong>. A job may receive a higher rate after an exit, or a lower rate after a fail; if then <code>T_pred &gt; D_j</code>, mark SLO-miss. Kill only via §14. After replay, <strong>scale</strong> every live flow&#x27;s realized rate by the same per-link factor so <span class="math">\sum\mathrm{rate}(f)\le c_e</span> (I1). Joint CIR is never scaled above <span class="math">c_e(1-s)</span>.</p>
+<h3 id="11-5-b-eff-and-t-pred">11.5 B_eff and T_pred</h3>
+<p><span class="math">B_\mathrm{eff,\phi} = \min_{f \in \phi} \mathrm{rate}(f)</span>. If any required fabric flow has rate 0 → reject as above. Intra-node flows have implicit rate <span class="math">+\infty</span> and are skipped in the min.</p>
+<hr>
+<h2 id="12-naive-controller">12. Naive controller</h2>
+<h3 id="12-1-scan-order-locked">12.1 Scan order (locked)</h3>
+<pre><code>fn gpu_scan_order(N, R) -&gt; impl Iterator&lt;Item=GpuId&gt;:
+  for n in 0..N:
+    for r in 0..R:
+      yield GpuId(n * R + r)</code></pre>
+<p>First-fit: walk this iterator, take the first <code>gpu_count</code> GPUs with <code>occ.is_free(g, graph)</code>. Binding kind = <code>NaiveFirstFit</code>. If fewer than <code>gpu_count</code> free: reject <code>NoFreeGpus</code>. <strong>No other reject code from naive.</strong> Naive does not look at residual, SLO, or rails.</p>
+<h3 id="12-2-rank-map-on-the-picked-set">12.2 Rank map on the picked set</h3>
+<p>Same function as joint (§13.2) so <code>--explain</code> can compare T_pred on the naive map. Naive still <strong>admits regardless of T_pred</strong>.</p>
+<h3 id="12-3-ecmp">12.3 ECMP</h3>
+<p>For each phase-0 fabric edge, take <code>k_shortest(...)[0]</code> with hop-count cost (§11.3). Tie-break: lowest <code>SpineId</code>, then lowest <code>LinkId</code> uplink, then lowest <code>LinkId</code> downlink. No residual in the key.</p>
+<h3 id="12-4-cir-install-under-naive">12.4 CIR install under naive</h3>
+<p>Water-fill on leftover <strong><code>c_e − cir</code></strong> (scratch <strong>open</strong>). Competing with existing CIR, not with <span class="math">c_e(1-s)</span>.</p>
+<ul><li><code>Ok(rates)</code>: install those rates as <span class="math">\rho_{j,e}</span> and <code>rate_Bps</code>.</li><li><code>Err(_)</code>: <strong>still admit</strong>. Install <code>rate_Bps = 0</code> on the flows that could not fill. <code>B_eff = 0</code> ⇒ treat <code>T_realized = i128::MAX</code> (SLO miss). Do not reject.</li></ul>
+<p>After every <code>RateRecompute</code>, scale live realized rates so <span class="math">\sum\mathrm{rate}\le c_e</span> (I1-naive). Joint never opens scratch: I1-joint is <span class="math">\sum\rho_{j,e}\le c_e(1-s)</span>.</p>
+<p>Example C J1/J2: leftover physical on the hot LS is 2.5 GB/s → water-fill succeeds at 2.5 GB/s → <span class="math">T=46.976\,\mathrm{ms}</span>, SLO miss, not <code>Err</code>.</p>
+<hr>
+<h2 id="13-joint-controller">13. Joint controller</h2>
+<h3 id="13-1-binding-enum-and-k-16">13.1 Binding enum and K=16</h3>
+<p><code>BindingKind::FirstFitShift { skip_free_gpus: 0, R, … }</code> and <code>BindingKind::RailRotate { start_rail: 0..7 }</code>. Cap <strong>K = 16</strong>. De-dup by sorted GPU-set. Empty list and <code>free ≥ p</code> → <code>FragmentedGpus</code>. <code>free &lt; p</code> → <code>NoFreeGpus</code>. Admit uses <code>ks[0]</code> only.</p>
+<p><strong>Why 16.</strong> Eight first-fit shifts (skip <code>i*R</code> free GPUs) plus eight rail rotates. Extra k-paths are for <code>--explain</code>, not extra admits.</p>
+<h3 id="13-2-generator-transcription">13.2 Generator (transcription)</h3>
+<pre><code>const N_FF: usize = 8;
+const N_RAIL: usize = 8;
+
+fn generate_bindings(job, occ, graph, N, R) -&gt; Vec&lt;Binding&gt;:
+  p = job.gpu_count
+  out = []
+  seen = set()   // BTreeSet of sorted GpuId vec
+  scan = [GpuId(n*R+r) for n in 0..N for r in 0..R]
+  free = [g in scan if occ.is_free(g, graph)]
+
+  for i in 0..N_FF:
+    skip = i * R                 // skip i*R free GPUs, NOT i nodes
+    pick = free[skip .. skip+p]  // if len &lt; p: break
+    if pick.len() == p and seen.insert(sorted(pick)):
+      out.push(Binding{ FirstFitShift{ skip_free_gpus: skip as u8 }, rank_map(pick, job) })
+
+  for rot in 0..R:               // R == 8 == N_RAIL
+    pick = []
+    for off in 0..R:
+      rail = (rot + off) % R
+      for n in 0..N:
+        g = GpuId(n*R + rail)
+        if occ.is_free(g, graph): pick.push(g)
+        if pick.len()==p: break
+      if pick.len()==p: break
+    if pick.len()==p and seen.insert(sorted(pick)):
+      out.push(Binding{ RailRotate{rot}, rank_map(pick, job) })
+
+  out.truncate(16)
+  return out</code></pre>
+<p><strong><code>rank_map(gpus, job)</code></strong> (same for both kinds; the <em>set</em> differs):</p>
+<ol><li>Bucket picked GPUs by <code>NodeId</code>, buckets ordered by NodeId. Inside a bucket, sort by local rank.</li><li>Walk <code>pp_idx</code> 0..pp, <code>dp_idx</code> 0..dp, <code>tp_idx</code> 0..tp (pp outer, then dp, then tp).</li><li>Assign the next unused GPU from the earliest node that still has a free picked GPU. This colocates TP on a node when the set contains full nodes, and walks nodes as DP.</li></ol>
+<p>Rail-rotate sets are rail-major, so a <code>dp=8,tp=1</code> job lands on one rail (DP-aligned). First-fit sets are node-major, so an 8-GPU job lands on one node (TP-colocated, T_fabric=0).</p>
+<h3 id="13-3-evaluate-one-binding">13.3 Evaluate one binding</h3>
+<pre><code>fn evaluate(b, job, graph, residual):
+  comms = communicators(b, job)
+  cost = 0.0
+  cir_add = zeros
+  t_pred = 0
+  paths_chosen = []
+  for comm in comms:
+    t_comm = 0
+    phase_loads = []
+    for phi in phases(comm):
+      flows = []
+      for (src,dst) in edges(phi):
+        if node(src)==node(dst): continue  # infinite, zero cost
+        if rail(src)!=rail(dst) and !graph.allow_cross_rail:
+          return CrossRailUnsupported
+        ks = k_shortest(src,dst,graph,residual, k=8)
+        if ks empty:
+          if src or dst is Unavailable (graph.avail) or hs/hd/leaf/spine failed:
+            return DeadElementOnPath
+          return ZeroLeftover
+        if min r_avail on ks[0] == 0: return ZeroLeftover
+        path = ks[0]
+        cost += sum Cost_e(path)
+        flows.push(Flow{path, bytes: chunk})
+        paths_chosen.push(path)
+      if flows empty:
+        # entire phase (or comm) intra-node: no α, no CIR
+        continue
+      rates = water_fill(flows, residual) ?  # copy of residual
+      B_eff = min rates
+      t_comm += alpha_ps + chunk_ps(B_eff)
+      phase_loads.push(load_from(rates, flows))
+    t_pred = max(t_pred, t_comm)
+    for e: cir_add[e] = max(cir_add[e], max_phi load[e])
+  if any cir_add[e] &gt; residual.r_avail[e]: return ResidualExhausted
+  if t_pred &gt; job.deadline_ps: return SloMiss
+  return Feasible{cost, t_pred, cir_add, paths_chosen}</code></pre>
+<p>Cost sums <strong>all</strong> fabric edges of <strong>all</strong> phases. That is the ranking key. (Phase-0-only is <strong>not</strong> used; A2A pairings differ by phase.)</p>
+<h3 id="13-4-admit-predicate">13.4 Admit predicate</h3>
+<pre><code>best = None
+notes = []
+for (idx, b) in generate_bindings(...):
+  match evaluate(b):
+    Feasible(f):
+      if best is None
+         or f.cost &lt; best.cost * (1 - 1e-12)
+         or (rel_eq(f.cost, best.cost, 1e-12) and idx &lt; best.idx):
+        best = (idx, b, f)
+    Err(code): notes.push(code)
+
+if best: commit occupy + residual.cir += cir_add; return Admit
+else: return Reject(select_code(notes, free, p))</code></pre>
+<p>Cost tie: relative <span class="math">10^{-12}</span>, then lower binding index. One rule.</p>
+<h3 id="13-5-reject-code-selection">13.5 Reject-code selection</h3>
+<pre><code>PRIORITY = [NoFreeGpus, FragmentedGpus, DeadElementOnPath,
+            ZeroLeftover, ResidualExhausted, SloMiss, CrossRailUnsupported]
+
+fn select_code(notes, free, p) -&gt; RejectCode:
+  if free &lt; p: return NoFreeGpus
+  if generate_bindings empty: return FragmentedGpus
+  for code in PRIORITY:
+    if notes contains code: return code
+  return SloMiss</code></pre>
+<p><code>--explain</code> still lists every per-binding code. <code>OddRingDegenerate</code> is never emitted (<code>p&lt;2</code> ⇒ T=0 admit). <code>MixDoesNotFit</code> is load-time/planner only. <code>EpochPrepareFailed</code> is 2PC only.</p>
+<table>
+<tr><th>notes set</th><th>code</th></tr>
+<tr><td><code>{ZeroLeftover, SloMiss}</code></td><td><code>ZeroLeftover</code></td></tr>
+<tr><td><code>{DeadElementOnPath, ZeroLeftover}</code></td><td><code>DeadElementOnPath</code></td></tr>
+<tr><td><code>{ResidualExhausted, SloMiss}</code></td><td><code>ResidualExhausted</code></td></tr>
+<tr><td><code>{SloMiss, CrossRailUnsupported}</code></td><td><code>SloMiss</code></td></tr>
+<tr><td><code>{SloMiss}</code></td><td><code>SloMiss</code></td></tr>
+<tr><td><code>{CrossRailUnsupported}</code></td><td><code>CrossRailUnsupported</code></td></tr>
+<tr><td>empty + bindings empty</td><td><code>FragmentedGpus</code></td></tr>
+<tr><td>empty + <code>free &lt; p</code></td><td><code>NoFreeGpus</code></td></tr>
+</table>
+<h3 id="13-6-explain-fields">13.6 <code>--explain</code> fields</h3>
+<p><code>fabric-te explain --run DIR --job J</code> <strong>reads <code>DIR/admit.jsonl</code></strong> (not reconstructed leftovers) and prints, in this order:</p>
+<table>
+<tr><th>Field</th><th>Content</th></tr>
+<tr><td><code>job_id</code></td><td>u32</td></tr>
+<tr><td><code>policy</code></td><td>naive\</td><td>joint</td></tr>
+<tr><td><code>decision</code></td><td>admit\</td><td>reject\</td><td>kill</td></tr>
+<tr><td><code>reject</code></td><td><code>RejectCode</code> or <code>-</code></td></tr>
+<tr><td><code>free_at_arrive</code></td><td>u32</td></tr>
+<tr><td><code>bindings_evaluated</code></td><td>≤16</td></tr>
+<tr><td><code>per_binding[]</code></td><td>kind, gpu_ids, cost, T_pred_ps, D_j_ps, code, path_link_ids of phase 0</td></tr>
+<tr><td><code>chosen</code></td><td>index, kind, map rank→gpu</td></tr>
+<tr><td><code>per_link[]</code></td><td>link_id, c_Bps, cir_Bps, r_avail_Bps, cost_e, rho_job</td></tr>
+<tr><td><code>waterfill[]</code></td><td>flow_id, rate_Bps</td></tr>
+<tr><td><code>B_eff_Bps</code></td><td>min rate (bytes/s)</td></tr>
+<tr><td><code>T_pred_ps</code></td><td>i128 printed as decimal</td></tr>
+<tr><td><code>D_j_ps</code></td><td></td></tr>
+<tr><td><code>naive_compare</code></td><td>naive gpu_ids, naive T_pred_ps, naive would_miss_slo bool</td></tr>
+</table>
+<p><code>--link L</code>: <code>c, scratch, cir, r_avail, failed, flows now, hotspot_us</code>.</p>
+<p><code>--fail spine=3</code>: epoch, jobs rerouted, jobs killed, T_pred before/after per job.</p>
+<h3 id="13-7-invariants-specific-to-joint">13.7 Invariants specific to joint</h3>
+<ul><li>I9: joint never sets <code>cir[e] &gt; capacity*95/100</code>.</li><li>Zero leftover + free GPUs ⇒ reject, never admit.</li><li>Cheapest feasible is selected; <code>--explain</code> shows the losers.</li></ul>
+<hr>
+<h2 id="14-failure-drain-epochs">14. Failure, drain, epochs</h2>
+<h3 id="14-1-classes">14.1 Classes</h3>
+<table>
+<tr><th>Class</th><th>CLI</th><th>Effect on jobs that use the element</th></tr>
+<tr><td>Spine down</td><td><code>--fail spine=3@1s</code></td><td>Recompute k-shortest on graph&#x27;. If new <code>T_pred ≤ D_j</code> and residual ≥ 0: <strong>reroute</strong>. Else <strong>kill</strong></td></tr>
+<tr><td>Leaf down</td><td><code>--fail leaf=2@500ms</code></td><td>Those ranks are dead (single-homed). <strong>Kill</strong> every job with a GPU on that leaf</td></tr>
+<tr><td>Rail down</td><td><code>--fail rail=0@2s</code></td><td>All leaves with <code>RailId=0</code> fail. <strong>Kill</strong> every job with a GPU on that rail</td></tr>
+<tr><td>Link down</td><td><code>--fail link=17@1s</code></td><td>Treat as spine-class if the link is LS (reroute-or-kill). Treat as leaf-class if the link is a host link (kill the one GPU&#x27;s jobs)</td></tr>
+</table>
+<p>Time grammar: <code>NUMBER</code> + <code>ps|ns|us|ms|s</code>, default unit <code>s</code>. Missing <code>@t</code> ⇒ <code>t = 1 ps</code> (not zero: after t=0 admits that also sit at 0). Multiple <code>--fail</code> allowed.</p>
+<p><strong>Invariant I2.</strong> After commit, a dead element carries 0 bytes. Capacity 0. <code>failed=true</code>. No live path may name it (I3).</p>
+<h3 id="14-2-mid-collective">14.2 Mid-collective</h3>
+<ul><li>Spine-class <strong>reroute</strong>: abort in-flight flows (<code>FlowDepart</code> now, partial <code>bytes</code>). Do <strong>not</strong> increment <code>steps_done</code>. Add <code>disrupted_step_ps += (t_now - t_collective_start)</code> (picoseconds). Convert once at report: <code>disrupted_step_us = disrupted_step_ps / 1_000_000</code>. Emit a new <code>CollectiveStart</code> for the <strong>same</strong> step on the new paths. Cancel any already-scheduled <code>FlowDepart</code> for the aborted flows.</li><li><strong>Kill</strong>: abort flows now. Mark <code>JobState::Killed</code>. Drop those GPUs from <code>occ.by_gpu</code>. If the NIC/leaf is dead, <code>graph&#x27;.avail = Unavailable</code> (epoch swap, not a live Graph mutate). CIR is <strong>not</strong> released here.</li></ul>
+<h3 id="14-3-2pc">14.3 2PC</h3>
+<div class="figure"><svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Epoch two-phase commit">
+  <rect x="1" y="1" width="718" height="248" fill="#fff" stroke="#000"/>
+  <text x="360" y="18" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 6. Epoch 2PC. Prepare is pure. Commit swaps both Graph and Residual.</text>
+  <rect x="30" y="40" width="150" height="36" fill="#fff" stroke="#000"/>
+  <text x="105" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">1. Coalesce Fail*</text>
+  <rect x="210" y="40" width="150" height="36" fill="#fff" stroke="#000"/>
+  <text x="285" y="62" text-anchor="middle" font-size="12" font-family="Georgia,serif">2. Prepare tuple</text>
+  <rect x="390" y="28" width="140" height="28" fill="#fff" stroke="#000"/>
+  <text x="460" y="46" text-anchor="middle" font-size="11" font-family="Georgia,serif">strict fail → exit 3</text>
+  <rect x="390" y="68" width="300" height="36" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="540" y="90" text-anchor="middle" font-size="12" font-family="Georgia,serif">3. Commit: swap Graph + Residual</text>
+  <rect x="30" y="140" width="150" height="32" fill="#fff" stroke="#000"/>
+  <text x="105" y="160" text-anchor="middle" font-size="11" font-family="Georgia,serif">apply kills</text>
+  <rect x="200" y="140" width="150" height="32" fill="#fff" stroke="#000"/>
+  <text x="275" y="160" text-anchor="middle" font-size="11" font-family="Georgia,serif">one RateRecompute</text>
+  <rect x="370" y="140" width="160" height="32" fill="#fff" stroke="#000"/>
+  <text x="450" y="160" text-anchor="middle" font-size="11" font-family="Georgia,serif">DrainComplete (trace)</text>
+  <rect x="550" y="140" width="140" height="32" fill="#fff" stroke="#000"/>
+  <text x="620" y="160" text-anchor="middle" font-size="11" font-family="Georgia,serif">EpochAdvance</text>
+  <polygon points="184,58 204,58 204,52 220,62 204,72 204,66 184,66" fill="#000"/>
+  <line x1="360" y1="58" x2="390" y2="42" stroke="#000"/>
+  <line x1="360" y1="58" x2="390" y2="86" stroke="#000"/>
+  <line x1="540" y1="104" x2="105" y2="140" stroke="#000"/>
+  <line x1="540" y1="104" x2="275" y2="140" stroke="#000"/>
+  <line x1="540" y1="104" x2="450" y2="140" stroke="#000"/>
+  <line x1="540" y1="104" x2="620" y2="140" stroke="#000"/>
+  <text x="360" y="204" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Same-ps Fail* → one prepare. DrainComplete does not touch CIR.</text>
+  <text x="360" y="228" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">LeafFail / RailFail kill. SpineFail reroutes if T_pred still meets D_j.</text>
+</svg></div>
+<p><strong>Coalesce.</strong> On the first Fail* at time <code>ps</code>, <code>Fel::drain_fails_at(ps)</code> pops every <code>LinkFail|LeafFail|RailFail|SpineFail</code> at that <code>ps</code>. One prepare, one epoch.</p>
+<p><strong>Prepare</strong> (pure; no live mutation) returns <code>{graph&#x27;, kills, reroutes, residual&#x27;}</code>:</p>
+<ol><li>Freeze <code>JobArrive</code>.</li><li><code>graph&#x27;</code> = clone with every failed element <code>failed=true</code>, capacity 0. Host-link fail ⇒ that GPU <code>Unavailable(FailedNic)</code>.</li><li>Classify live jobs in <strong>admit-seq</strong> order (spine-class reroute-or-kill; leaf/rail/host-NIC kill).</li><li>Build <code>residual&#x27;</code> from <code>graph&#x27;</code> with CIR of killed jobs omitted (not yet subtracted from live — RateRecompute replays).</li><li><code>--strict</code> + I2/I3 already broken on the old graph → <code>EpochPrepareFailed</code>, exit 3. OOM → exit 5.</li></ol>
+<p><strong>Commit:</strong></p>
+<ol><li>Swap <code>Arc&lt;Graph&gt;</code> <strong>and</strong> replace <code>Residual</code> with <code>residual&#x27;</code>.</li><li>Apply kills: <code>JobState::Killed</code>, free or unavail GPUs, <strong>no CIR arithmetic</strong>.</li><li>Apply reroutes: write new paths on <code>JobRec</code>; abort + <code>CollectiveStart</code> same step.</li><li>Push <strong>exactly one</strong> <code>RateRecompute { EpochCommit }</code> (clear CIR, replay live in admit-seq, scale to I1).</li><li>Push one <code>DrainComplete</code> per killed job (<strong>trace-only</strong>).</li><li>Push <code>EpochAdvance</code>.</li><li>Unfreeze admit queue.</li></ol>
+<p>No in-place fail mutation in any PR. Epoch N+1 is the only graph later decisions see.</p>
+<hr>
+<h2 id="15-planner-what-if">15. Planner / what-if</h2>
+<p>Planner is <code>run</code> with a modified <code>Graph</code> and no wall-clock. Same admit engine, same policy flag (default <code>joint</code>).</p>
+<h3 id="15-1-delta-grammar">15.1 Delta grammar</h3>
+<pre><code>--delta &#x27;delay-row=B&#x27;
+--delta &#x27;spines=3&#x27;
+--delta &#x27;spines=-25%&#x27;
+--delta &#x27;oversub=2&#x27;</code></pre>
+<p>Multiple <code>--delta</code> apply in CLI order.</p>
+<table>
+<tr><th>Delta</th><th>Meaning</th></tr>
+<tr><td><code>delay-row=X</code></td><td>Row letter A=0, B=1, … Row <span class="math">i</span> = nodes <code>[16i, 16i+16)</code>. Those nodes <code>present=false</code>, GPUs <code>Unavailable(AbsentRow)</code>, host links absent. Leaves/spines remain.</td></tr>
+<tr><td><code>spines=N</code></td><td>Keep <code>SpineId</code> 0..N-1 only. Rewire LS with §7.4 on the reduced S.</td></tr>
+<tr><td><code>spines=-P%</code></td><td><span class="math">S&#x27; = \lceil S \cdot (100-P)/100 \rceil</span>, then as <code>spines=S&#x27;</code></td></tr>
+<tr><td><code>oversub=K_OMEGA</code></td><td>Recompute U and S from §7.2</td></tr>
+</table>
+<p>Unknown delta → exit 2.</p>
+<h3 id="15-2-report-fields-in-report-json-under-plan">15.2 Report fields (in <code>report.json</code> under <code>&quot;plan&quot;</code>)</h3>
+<table>
+<tr><th>Field</th><th>Content</th></tr>
+<tr><td><code>deltas</code></td><td>echoed specs</td></tr>
+<tr><td><code>nodes_removed</code></td><td>list</td></tr>
+<tr><td><code>gpus_removed</code></td><td>u32</td></tr>
+<tr><td><code>S_before</code>, <code>S_after</code></td><td>u32</td></tr>
+<tr><td><code>jobs_admitted</code></td><td>ids</td></tr>
+<tr><td><code>jobs_rejected</code></td><td><code>{id, code, T_pred_ps, D_j_ps}</code></td></tr>
+<tr><td><code>new_hotspots</code></td><td>links with util ≥ θ that were cold on the no-delta baseline</td></tr>
+<tr><td><code>restore.extra_spines</code></td><td>min extra spines (scan S&#x27;..S) so <strong>every mix job admits</strong>; <code>null</code> if impossible</td></tr>
+<tr><td><code>restore.rows_needed</code></td><td>rows that must exist; <code>delay-row=B</code> → <code>[&quot;B&quot;]</code> if restoring B admits every mix job</td></tr>
+<tr><td><code>vs_baseline</code></td><td>admit/reject counts from a <strong>mandatory</strong> no-delta run of the same engine</td></tr>
+</table>
+<p><strong>Fully admits</strong> = every job in the mix has <code>decision=admit</code> (not “every job the baseline admitted”). Always run the no-delta baseline (counts toward §21 wall). If the mix does not fit the unmodified topo: exit 4, still write the report.</p>
+<p><code>fabric-te plan --topo T --mix M --delta &#x27;delay-row=B&#x27; --policy joint --out DIR</code> is the week-13 contract. <code>--fail</code> is legal on <code>plan</code> (same SPEC as <code>run</code>).</p>
+<hr>
+<h2 id="16-operator-ux">16. Operator UX</h2>
+<h3 id="16-1-grammar">16.1 Grammar</h3>
+<pre><code>fabric-te topo    --gpus G_TOT [--rails R] [--oversub K_OMEGA] [--dump|--json]
+fabric-te run     --topo T --mix M --policy naive|joint
+                  [--fail SPEC]... [--seed S] [--out DIR] [--strict]
+fabric-te plan    --topo T --mix M --delta SPEC [--delta SPEC]...
+                  [--fail SPEC]... [--policy joint] [--out DIR]
+fabric-te explain --run DIR --job J
+fabric-te explain --run DIR --link L
+fabric-te explain --run DIR --fail spine=3</code></pre>
+<p><code>--dump</code> and <code>--json</code> are XOR. Passing both → exit 1. Passing neither on <code>topo</code> prints the one-line closed-form (<code>N L S E_host E_ls B_bisect_gbps</code>).</p>
+<table>
+<tr><th>Token</th><th>Rule</th></tr>
+<tr><td><code>--gpus G_TOT</code></td><td>GPU count. Must be divisible by <code>--rails</code> (default 8)</td></tr>
+<tr><td><code>--oversub K_OMEGA</code></td><td>∈ {1,2,4,8,16,32}. Not the binding cap K</td></tr>
+<tr><td><code>--topo T</code></td><td>Path to TOML <strong>or</strong> builtin <code>n32</code> <code>n64</code> <code>n256</code> <code>n1024</code></td></tr>
+<tr><td><code>--mix M</code></td><td>Path to mix TOML</td></tr>
+<tr><td><code>--policy</code></td><td>Required for <code>run</code>. Default <code>joint</code> for <code>plan</code></td></tr>
+<tr><td><code>--out DIR</code></td><td>Default <code>./out</code>. Overwrite. Parent created</td></tr>
+<tr><td><code>--seed S</code></td><td>u64, default 1</td></tr>
+<tr><td><code>--strict</code></td><td>Any invariant fail → exit 3 immediately</td></tr>
+<tr><td><code>--dump</code></td><td>Human tables. XOR <code>--json</code></td></tr>
+<tr><td><code>--json</code></td><td>Machine JSON (topo only). XOR <code>--dump</code></td></tr>
+<tr><td><code>--fail</code></td><td>Repeatable on <code>run</code> <strong>and</strong> <code>plan</code>. Grammar §14.1</td></tr>
+<tr><td><code>--delta</code></td><td>Repeatable. Grammar §15.1</td></tr>
+</table>
+<p>No production TUI. No <code>inspect</code> in v1.</p>
+<h3 id="16-2-stdout-stderr">16.2 stdout / stderr</h3>
+<ul><li>Errors: stderr, one line <code>error[E_CODE]: message</code>.</li><li><code>--strict</code> dumps the broken invariant name.</li><li>Color: none.</li></ul>
+<p><strong><code>topo --dump</code> columns</strong> (space-separated, header row):</p>
+<pre><code>N L S E_host E_ls B_bisect_gbps</code></pre>
+<p>Then a 16-row host-LinkId pin (n32 first 16 host directed links):</p>
+<pre><code>link_id src dst   # GpuId 0 Nic→Leaf through GpuId 7 Leaf→Nic, then GpuId 1 …</code></pre>
+<p>n32 pin: LinkId 0..15 are <code>2<em>(n</em>R+r)</code> Nic→Leaf and <code>+1</code> Leaf→Nic for <code>(n,r)</code> in scan order, first 8 GPUs.</p>
+<p><strong><code>run</code> / <code>plan</code> summary</strong> (stdout): the <code>report.json</code> <code>counts</code> keys then every <code>rejects_by_code</code> key, one row, integer cells. 80-col safe.</p>
+<p><strong><code>explain</code></strong>: <code>key: value</code> lines in the §13.6 field order (not a table). Lists as indented JSON-ish arrays.</p>
+<h3 id="16-3-exit-codes">16.3 Exit codes</h3>
+<table>
+<tr><th>Code</th><th>Name</th><th>When</th></tr>
+<tr><td>0</td><td>ok</td><td>Completed; plan may still list rejects</td></tr>
+<tr><td>1</td><td>usage</td><td>Bad flags, missing required, <code>--help</code> is 0</td></tr>
+<tr><td>2</td><td>bad input</td><td>TOML parse, unknown key, <code>gpus % rails != 0</code>, bad <code>--fail</code> / <code>--delta</code></td></tr>
+<tr><td>3</td><td>invariant fail</td><td>I1–I10 broken, or <code>--strict</code> trip</td></tr>
+<tr><td>4</td><td>mix does not fit</td><td>Isolated job cannot meet SLO on empty fabric, or <code>p &gt; G_tot</code></td></tr>
+<tr><td>5</td><td>IO abort</td><td><code>--out</code> unwritable, Parquet flush fail, OOM on Arc</td></tr>
+</table>
+<p><code>--help</code> and <code>--version</code> exit 0.</p>
+<h3 id="16-4-out-safety">16.4 <code>--out</code> safety</h3>
+<p>See §24. Canonicalize. Reject <code>..</code> escape from CWD unless the path is already a child of CWD after <code>canonicalize</code>. Do not follow a symlink out of CWD.</p>
+<h3 id="16-5-accessibility">16.5 Accessibility</h3>
+<p><code>report.html</code>: real headings, <code>&lt;table&gt;&lt;caption&gt;</code>, black on white, no information in color alone. CLI errors are text codes, not color. Tables in <code>--dump</code> are space-separated with a header row.</p>
+<h3 id="16-6-error-strings-stable">16.6 Error strings (stable)</h3>
+<table>
+<tr><th><code>E_CODE</code></th><th>Meaning</th></tr>
+<tr><td><code>E_USAGE</code></td><td>exit 1</td></tr>
+<tr><td><code>E_PARSE</code></td><td>TOML / number</td></tr>
+<tr><td><code>E_SCHEMA</code></td><td>unknown or missing key</td></tr>
+<tr><td><code>E_TOPO</code></td><td>illegal params (oversub not dividing D)</td></tr>
+<tr><td><code>E_MIX</code></td><td>job shape illegal (also may be exit 4)</td></tr>
+<tr><td><code>E_INV</code></td><td>invariant name</td></tr>
+<tr><td><code>E_IO</code></td><td>path / parquet</td></tr>
+<tr><td><code>E_FAILSPEC</code></td><td><code>--fail</code> / <code>--delta</code> grammar</td></tr>
+</table>
+<hr>
+<h2 id="17-metrics-and-figures-of-merit">17. Metrics and figures of merit</h2>
+<p>Live counters are i128 <strong>picoseconds</strong> (or dimensionless). <code>report.json</code> stores <strong>integer microseconds</strong>: <span class="math">x_\mathrm{us} = \lfloor x_\mathrm{ps} / 1\,000\,000 \rfloor</span>. Never <code>/1000</code> (that is ns). Minutes <span class="math">= x_\mathrm{ps}/(60\times 10^{12})</span>. Seconds <span class="math">= x_\mathrm{ps}/10^{12}</span>. Test <code>model_us_is_ps_div_1e6</code>.</p>
+<table>
+<tr><th>Metric</th><th>Accumulator</th><th>report.json</th></tr>
+<tr><td>hotspot</td><td><span class="math">\sum_e \sum \Delta t_\mathrm{ps}</span> where util <span class="math">\ge \theta=0.80\,c_e</span> (instant rate / <span class="math">c_e</span>)</td><td><code>hotspot_us</code></td></tr>
+<tr><td>completions_by_deadline</td><td>jobs with <code>exit_ps ≤ arrive_ps + step_count*(compute_ps+D_j)</code> and every <code>T_realized ≤ D_j</code></td><td>same name, integer count</td></tr>
+<tr><td>rejects</td><td>count by <code>RejectCode</code></td><td><code>rejects_by_code</code></td></tr>
+<tr><td>tail collective</td><td>p99 of <code>(CollectiveEnd−CollectiveStart)</code> ps; n&lt;100 → max</td><td><code>tail_collective_us_p99</code></td></tr>
+<tr><td>last-flow</td><td>max of those durations</td><td><code>last_flow_collective_us_max</code></td></tr>
+<tr><td>SLO miss</td><td><span class="math">\sum_j\sum_{\mathrm{steps}}\max(0,T_\mathrm{realized}-D_j)</span> ps</td><td><code>slo_miss_us</code></td></tr>
+<tr><td>disrupted</td><td>sum of aborted-collective prefixes (§14.2) ps</td><td><code>disrupted_step_us</code></td></tr>
+<tr><td>mean util</td><td><span class="math">\sum_e\int\mathrm{util}\,dt / (E\cdot T)</span>, ppm</td><td><code>mean_link_util_ppm</code> only; <strong>not</strong> a gate</td></tr>
+</table>
+<p><strong>Worked metric.</strong> One directed link at util ≥ θ for exactly 1 s: hotspot accumulator <span class="math">=10^{12}</span> ps. <code>hotspot_us = 1_000_000</code>. <code>hotspot_minutes = 1/60</code>.</p>
+<p><code>T_realized</code> is <code>CollectiveEnd.ps − CollectiveStart.ps</code> and <strong>ignores</strong> <span class="math">q</span>. Optional <code>queue_delay_us</code> is annotation only.</p>
+<p>1-step compute golden: <code>arrive=0</code>, <code>compute_s=0.010</code>, one collective of T ps ⇒ <code>exit_ps = 10_000_000_000_000 + T</code>. Test <code>compute_before_first_collective</code>.</p>
+<hr>
+<h2 id="18-verification-and-testing">18. Verification and testing</h2>
+<h3 id="18-1-verification-loop">18.1 Verification loop</h3>
+<div class="figure"><svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Verification loop">
+  <rect x="1" y="1" width="718" height="148" fill="#fff" stroke="#000"/>
+  <text x="360" y="18" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 7. Verification loop. A failing invariant blocks the tag.</text>
+  <rect x="24" y="50" width="90" height="36" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="69" y="72" text-anchor="middle" font-size="12" font-family="Georgia,serif">Spec</text>
+  <rect x="154" y="36" width="100" height="28" fill="#fff" stroke="#000"/>
+  <text x="204" y="54" text-anchor="middle" font-size="12" font-family="Georgia,serif">Goldens</text>
+  <rect x="154" y="78" width="100" height="28" fill="#fff" stroke="#000"/>
+  <text x="204" y="96" text-anchor="middle" font-size="12" font-family="Georgia,serif">I1–I10</text>
+  <rect x="154" y="114" width="100" height="24" fill="#fff" stroke="#000"/>
+  <text x="204" y="130" text-anchor="middle" font-size="11" font-family="Georgia,serif">log = counters</text>
+  <rect x="320" y="56" width="120" height="40" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="380" y="80" text-anchor="middle" font-size="12" font-family="Georgia,serif">CI gate</text>
+  <rect x="500" y="56" width="180" height="40" fill="#fff" stroke="#000"/>
+  <text x="590" y="80" text-anchor="middle" font-size="12" font-family="Georgia,serif">release tag</text>
+  <line x1="114" y1="68" x2="154" y2="50" stroke="#000"/>
+  <line x1="114" y1="68" x2="154" y2="92" stroke="#000"/>
+  <line x1="114" y1="68" x2="154" y2="126" stroke="#000"/>
+  <line x1="254" y1="50" x2="320" y2="70" stroke="#000"/>
+  <line x1="254" y1="92" x2="320" y2="80" stroke="#000"/>
+  <line x1="254" y1="126" x2="320" y2="88" stroke="#000"/>
+  <polygon points="448,76 468,76 468,70 486,80 468,90 468,84 448,84" fill="#000"/>
+</svg></div>
+<h3 id="18-2-invariants">18.2 Invariants</h3>
+<table>
+<tr><th>ID</th><th>Predicate</th></tr>
+<tr><td>I1</td><td>Joint: <code>cir[e] ≤ c_e*95/100</code>. Naive: <code>sum rate(f) ≤ c_e</code>. Checked every <code>RateRecompute</code> and <code>FlowArrive</code></td></tr>
+<tr><td>I2</td><td><code>failed ⇒ bytes_this_epoch == 0</code></td></tr>
+<tr><td>I3</td><td>No live path contains a failed <code>LinkId</code> / leaf / spine</td></tr>
+<tr><td>I4</td><td>Occupied GPUs ⊆ cluster; binding size = <code>gpu_count</code></td></tr>
+<tr><td>I5</td><td>A GPU is owned by at most one live job</td></tr>
+<tr><td>I6</td><td>End of run: rollup(events, flows, links) == live counters</td></tr>
+<tr><td>I7</td><td>If all phase <code>B_eff</code> equal, \</td><td>phase-sum − closed form\</td><td>≤ 1 ps</td></tr>
+<tr><td>I8</td><td>FEL <code>ps</code> non-decreasing; <code>(ps,seq)</code> unique</td></tr>
+<tr><td>I9</td><td>Joint never allocates into scratch</td></tr>
+<tr><td>I10</td><td>Node&#x27;s R NICs map to R distinct rails / leaves</td></tr>
+</table>
+<h3 id="18-3-unit-property-tests-name-predicate">18.3 Unit / property tests (name + predicate)</h3>
+<table>
+<tr><th>Test name</th><th>Predicate</th></tr>
+<tr><td><code>topo_n32_closed_form</code></td><td>L=8, S=4, E_host=256, E_ls=256, B_bisect=51200 Gbps</td></tr>
+<tr><td><code>topo_n64_closed_form</code></td><td>L=16, S=8, E_host=512, E_ls=512, B_bisect=102400 Gbps</td></tr>
+<tr><td><code>topo_n256_closed_form</code></td><td>L=64, S=32, E_host=2048, E_ls=2048</td></tr>
+<tr><td><code>topo_rail_not_tor</code></td><td>For every node, 8 host links go to 8 distinct <code>LeafId</code>s</td></tr>
+<tr><td><code>topo_one_nic_per_gpu</code></td><td><code>NicId == GpuId</code>, counts equal</td></tr>
+<tr><td><code>topo_bisection_n32_leaf_not_spine</code></td><td>A same-rail path for N=32 has no spine endpoint</td></tr>
+<tr><td><code>topo_ls_full_mesh_n32</code></td><td>Each leaf has 8 cables to each of 4 spines</td></tr>
+<tr><td><code>model_ring_8x64mib</code></td><td>T = 2_362_810_240 ps</td></tr>
+<tr><td><code>model_ring_16x64mib</code></td><td>T = 2_546_582_400 ps</td></tr>
+<tr><td><code>model_a2a_8x64mib</code></td><td>T = 1_181_405_120 ps</td></tr>
+<tr><td><code>model_ring_8x64mib_47_5</code></td><td>T = 2_486_431_832 ps (±1 ps)</td></tr>
+<tr><td><code>model_beta_is_20ps_not_20ns</code></td><td><code>beta_s_per_byte(50e9) == 2e-11</code>; using <code>20e-9</code> misses Example B by 1000×</td></tr>
+<tr><td><code>model_us_is_ps_div_1e6</code></td><td><code>1_000_000_000_000 ps → 1_000_000 us</code>. <code>/1000</code> fails</td></tr>
+<tr><td><code>model_units_bytes_not_bits</code></td><td>Using 400e9 as B/s disagrees with golden by 8×</td></tr>
+<tr><td><code>model_phase_sum_eq_closed</code></td><td>I7</td></tr>
+<tr><td><code>model_p1_zero</code></td><td>p=1 ⇒ T=0</td></tr>
+<tr><td><code>model_ignores_kernel_launch</code></td><td><code>T(α,β,p,M)</code> equals the closed form; no extra addend</td></tr>
+<tr><td><code>fel_fires_one_event</code></td><td>Push one <code>JobArrive</code>; pop yields that event, heap empty</td></tr>
+<tr><td><code>compute_before_first_collective</code></td><td>1-step job: first <code>CollectiveStart.ps == arrive_ps + compute_ps</code></td></tr>
+<tr><td><code>naive_scan_order_node_then_rank</code></td><td>First 10 free on empty n32 are GpuId 0..9</td></tr>
+<tr><td><code>naive_ecmp_tiebreak_lowest_linkid</code></td><td>Two equal-hop paths → smaller (SpineId, LinkId_up, LinkId_down)</td></tr>
+<tr><td><code>naive_admit_gpu_count_only</code></td><td>Job with D_j &lt; isolated T still admits if free ≥ p</td></tr>
+<tr><td><code>naive_may_overadmit</code></td><td>Example C: naive admits J1 and J2; both <code>T_realized=46.976 ms</code></td></tr>
+<tr><td><code>joint_k16_bound</code></td><td><code>generate_bindings</code> len ≤ 16</td></tr>
+<tr><td><code>joint_kshortest_k8</code></td><td>Enumerator returns ≤ 8</td></tr>
+<tr><td><code>joint_cost_inverse_residual</code></td><td>Lower r_avail ⇒ higher Cost_e</td></tr>
+<tr><td><code>joint_waterfill_maxmin</code></td><td>Two flows share a link ⇒ equal rates (±1 B/s)</td></tr>
+<tr><td><code>joint_reject_zero_leftover</code></td><td>Example C joint rejects J2 with <code>ZeroLeftover</code></td></tr>
+<tr><td><code>joint_reject_slo_miss</code></td><td>Isolated T at 47.5 GB/s &gt; D_j → <strong>exit 4</strong> at load. No bypass path</td></tr>
+<tr><td><code>joint_admit_cheapest_feasible</code></td><td>Example C J1 chosen kind is <code>RailRotate{1}</code>; <code>FirstFitShift{0}</code> is <code>ZeroLeftover</code></td></tr>
+<tr><td><code>fail_spine_reroute_or_kill</code></td><td>Path exists and T≤D_j ⇒ reroute; else kill</td></tr>
+<tr><td><code>fail_leaf_kills_single_homed</code></td><td>Leaf fail kills owners; others untouched</td></tr>
+<tr><td><code>fail_dead_zero_bytes</code></td><td>I2 after commit</td></tr>
+<tr><td><code>epoch_2pc_arc_swap</code></td><td><code>EpochId</code> increments once; all post-commit events carry new id</td></tr>
+<tr><td><code>planner_same_engine</code></td><td><code>plan</code> and <code>run</code> on identical topo+mix (no fail) produce identical admit set</td></tr>
+<tr><td><code>planner_delay_row_b</code></td><td>Nodes 16..31 absent; those GpuIds never bound</td></tr>
+<tr><td><code>parity_log_equals_counters</code></td><td>I6</td></tr>
+<tr><td><code>replay_seed_deterministic</code></td><td>two <code>run --seed 1</code> → identical <code>report.json</code> (hashes of parquet too)</td></tr>
+<tr><td><code>clock_ps_total_order</code></td><td>I8</td></tr>
+<tr><td><code>scratch_not_used_by_jobs</code></td><td>I9</td></tr>
+<tr><td><code>incast_last_flow_metric</code></td><td>Report prefers <code>last_flow_collective_us_max</code> over <code>mean_link_util_ppm</code> for pass/fail in goldens</td></tr>
+<tr><td><code>simultaneous_fifo_admit</code></td><td>Two JobArrive at same ps: lower seq admitted first; second sees first CIR</td></tr>
+<tr><td><code>odd_ring_last_hop</code></td><td>p=3 ring uses T=4α + (4/3)βM, not a p=2 formula</td></tr>
+<tr><td><code>cli_exit_codes</code></td><td>usage→1, bad toml→2, <code>--strict</code> broken I→3, isolated miss→4, unwritable <code>--out</code>→5</td></tr>
+</table>
+<h3 id="18-4-goldens-inputs-committed-here">18.4 Goldens (inputs committed here)</h3>
+<p>Logic checks are specified now. Measured hotspot/complete tables for <code>default-mix-512</code> land week 7 (naive) / week 10 (joint).</p>
+<p><strong><code>empty-cluster</code>.</strong> topo <code>n32</code>, mix <code>empty.toml</code> (<code>horizon_s=1</code>, no jobs). Expect: L=8 S=4 E_host=256 E_ls=256 B_bisect_gbps=51200, arrivals=0, EpochId=0.</p>
+<p><strong><code>default-mix-512</code>.</strong> topo <code>n64</code>. Mix = §9.6 (<code>id=1</code> at 0s + pattern 20 jobs <code>start_id=100</code>, 16 GPUs, dp=2 tp=8 ring, M=64 MiB, steps 100/50, compute 10 ms, D_j=5 ms). Isolated T always at 47.5 GB/s, never 50: ring p=2 = <strong>1414.818 µs</strong> &lt; 5 ms. 21×16=336 GPUs ≤ 512. Expect <strong>both</strong> policies: admits=21, rejects=0, I1–I10. Week-7/10 compare <code>hotspot_us</code> and <code>completions_by_deadline</code>; joint must be ≤ / ≥ naive or <code>NOTE.md</code>.</p>
+<p><strong><code>moe-burst</code>.</strong> topo <code>n64</code>. Four jobs, <code>pairwise_alltoall</code>, 32 GPUs, dp=4 tp=8 pp=1, M_tot=64 MiB, steps=20, compute=0.010, D_j=0.002, arrive at 0, 1 ms, 2 ms, 3 ms, ids 1–4. Isolated T_a2a(p=4) at 47.5 GB/s = <strong>1062.614 µs</strong> &lt; 2 ms. 128 GPUs. Expect admits=4, rejects=0. Gate: <code>last_flow_collective_us_max</code> present; <code>mean_link_util_ppm</code> is <strong>not</strong> a gate.</p>
+<p><strong><code>spine-down</code> mix (locked).</strong> topo <code>n64</code>. Policy <strong>joint</strong>.</p>
+<ul><li>J1: id=1, arrive=0, gpu_count=40, dp=40, tp=1, pp=1, ring, M=64 MiB, steps=20, compute=0.010, D_j=0.010. Isolated T_ring(p=40) at 47.5 GB/s = 2832.995 µs &lt; 10 ms. <code>RailRotate{0}</code> uses nodes 0–39 on rail 0 (LG0+LG1) and hits spine.</li><li><code>--fail spine=3@1s</code></li><li>Expect: after commit, <code>bytes_this_epoch==0</code> on every link with <code>src</code> or <code>dst</code> = SpineId(3). Job <strong>rerouted</strong> (7 spines remain). kills=0. <code>EpochId==1</code>.</li></ul>
+<p>Naive companion on the same mix: first-fit 40 GPUs is 5 full nodes (may not use spine 3). I2 still holds. Expect admits=1, kills=0.</p>
+<p><strong><code>row-late</code>.</strong> topo <code>n256</code> (2048 GPUs). <code>--delta &#x27;delay-row=B&#x27;</code>. Mix: 10 jobs × 16 GPUs, dp=2 tp=8 ring, M=64 MiB, steps=10, compute=0.010, D_j=0.005, arrive <code>0.1*i</code> s, ids 1–10. Expect: <code>gpus_removed=128</code>, every <code>JobRec.binding</code> GpuId has <code>node ∉ [16,32)</code>, admits=10, rejects=0. <code>vs_baseline.admits=10</code>.</p>
+<p><strong><code>example-c</code>.</strong> n64 + <code>Residual::inject_cir</code> on all rail-0 LS. Fixture <code>occ.by_gpu</code> holds every GPU except H∪C (no dummy <code>JobId(0)</code> on Graph). Mix J1/J2 as §8.6. Expect the §8.6 table.</p>
+<p>Week-7 writes <code>fixtures/golden/default-mix-512/naive.report.json</code>. Week-10 adds <code>joint.report.json</code> and <code>NOTE.md</code> only if joint does not beat naive on <code>hotspot_us</code> <strong>and</strong> <code>completions_by_deadline</code>.</p>
+<hr>
+<h2 id="19-repo-architecture-expected-size-fixtures-ci">19. Repo architecture, expected size, fixtures, CI</h2>
+<h3 id="19-1-tree">19.1 Tree</h3>
+<pre><code>fabric-te/
+  Cargo.toml                 # workspace
+  Cargo.lock
+  rust-toolchain.toml        # 1.78+
+  crates/
+    fabric-types/src/lib.rs
+    fabric-topo/src/lib.rs
+    fabric-model/src/lib.rs
+    fabric-ctrl/src/{lib.rs,naive.rs,joint.rs,epoch.rs,plan.rs}
+    fabric-sim/src/{lib.rs,fel.rs,residual.rs}
+    fabric-trace/src/lib.rs
+    fabric-report/src/{lib.rs,html.rs}
+    fabric-te/src/main.rs    # clap only
+  fixtures/
+    topo/{n32,n64,n256}.toml
+    mix/{empty,default-512,moe-burst,spine-down,row-late}.toml
+    golden/{empty-cluster,default-mix-512,moe-burst,spine-down,row-late,example-c}/
+  docs/DESIGN.md             # this lock
+  tests/cli.rs               # end-to-end</code></pre>
+<div class="figure"><svg viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Repository layout">
+  <rect x="1" y="1" width="718" height="178" fill="#fff" stroke="#000"/>
+  <text x="360" y="18" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 8. Workspace. docs/DESIGN.md is this lock.</text>
+  <rect x="280" y="36" width="160" height="28" fill="#fff" stroke="#000" stroke-width="2"/>
+  <text x="360" y="54" text-anchor="middle" font-size="12" font-family="Georgia,serif">fabric-te/</text>
+  <rect x="40" y="100" width="180" height="48" fill="#fff" stroke="#000"/>
+  <text x="130" y="120" text-anchor="middle" font-size="12" font-family="Georgia,serif">crates/*</text>
+  <text x="130" y="136" text-anchor="middle" font-size="10" font-family="Arial,sans-serif">8 crates, locked DAG</text>
+  <rect x="270" y="100" width="180" height="48" fill="#fff" stroke="#000"/>
+  <text x="360" y="120" text-anchor="middle" font-size="12" font-family="Georgia,serif">fixtures/</text>
+  <text x="360" y="136" text-anchor="middle" font-size="10" font-family="Arial,sans-serif">topo · mix · golden</text>
+  <rect x="500" y="100" width="180" height="48" fill="#fff" stroke="#000"/>
+  <text x="590" y="120" text-anchor="middle" font-size="12" font-family="Georgia,serif">docs + tests</text>
+  <text x="590" y="136" text-anchor="middle" font-size="10" font-family="Arial,sans-serif">DESIGN.md · cli.rs</text>
+  <line x1="360" y1="64" x2="130" y2="100" stroke="#000"/>
+  <line x1="360" y1="64" x2="360" y2="100" stroke="#000"/>
+  <line x1="360" y1="64" x2="590" y2="100" stroke="#000"/>
+</svg></div>
+<h3 id="19-2-size">19.2 Size</h3>
+<table>
+<tr><th>Bucket</th><th>LOC</th></tr>
+<tr><td>Production</td><td>10–16 k</td></tr>
+<tr><td>Tests</td><td>4–6 k</td></tr>
+<tr><td>Total</td><td>14–22 k</td></tr>
+</table>
+<p>If a crate exceeds ~3 k without a spec reason, the spec is missing a cut, not the crate.</p>
+<h3 id="19-3-toolchain">19.3 Toolchain</h3>
+<ul><li>Edition 2021, rustc 1.78+ (pin in <code>rust-toolchain.toml</code>).</li><li><code>BTreeMap</code> / <code>BTreeSet</code> anywhere iteration hits a report or a path choice. <code>HashMap</code> forbidden on those paths.</li><li>No tokio. No rayon in sim/ctrl.</li><li>Deps: <code>clap</code>, <code>serde</code>, <code>toml</code>, <code>thiserror</code>, <code>anyhow</code> (bin only), <code>tracing</code>, <code>tracing-subscriber</code>, <code>parquet</code>+<code>arrow</code>, <code>sha2</code>. <code>rand</code> + <code>StdRng</code> only if a later addendum adds jitter (v1: do not take <code>rand</code>).</li><li><code>cargo test --workspace</code> is the suite. One command.</li></ul>
+<h3 id="19-4-ci">19.4 CI</h3>
+<pre><code>fmt --check
+clippy -D warnings
+test --workspace
+deny: rustc `public_dependency` / `cargo deny` layering (ctrl→topo allowed; sim↛te)
+golden diff on report.json (jq-sorted keys)</code></pre>
+<p>A failing invariant blocks a tag.</p>
+<hr>
+<h2 id="20-development-process">20. Development process</h2>
+<p>Design-first. Weeks 1–3 are this document. A spec hole found in code is a design revision, then a resume — not a decision in the PR.</p>
+<table>
+<tr><th>Week</th><th>Build</th><th>Done when</th></tr>
+<tr><td>1</td><td>Problem, types, events, schemas, metrics, domain freeze</td><td>Closed-form topology exists (here)</td></tr>
+<tr><td>2</td><td>Collectives, naive, joint, fail, planner + numeric examples</td><td>Example A/B/C computable by hand (here)</td></tr>
+<tr><td>3</td><td>Crate map, CLI, goldens-as-spec, PR cut</td><td>This freeze</td></tr>
+<tr><td>4</td><td>Repo, FEL, EventPayload, Fel API</td><td><code>fel_fires_one_event</code></td></tr>
+<tr><td>5</td><td>Generator + <code>topo --gpus 256 --dump</code></td><td>Example A numbers</td></tr>
+<tr><td>6</td><td>Mix loader + formulas (<code>--gpus</code> for size)</td><td>Example B + <code>model_beta_is_20ps_not_20ns</code></td></tr>
+<tr><td>7</td><td>Residual+enumerator; naive admit; traces</td><td>Baseline <code>naive.report.json</code></td></tr>
+<tr><td>8</td><td>Bindings + <code>admit.jsonl</code> + explain</td><td>K≤16</td></tr>
+<tr><td>9–10</td><td>Water-fill + joint + vs-naive</td><td>Joint beats or NOTE.md; Example C</td></tr>
+<tr><td>11–12</td><td>Fail + 2PC (no in-place)</td><td><code>spine-down</code> golden</td></tr>
+<tr><td>13</td><td>Planner deltas + <code>plan --fail</code></td><td><code>delay-row=B</code> snapshot</td></tr>
+<tr><td>14</td><td>Remaining goldens</td><td>All named goldens run</td></tr>
+<tr><td>15</td><td>I1–I10 + parity</td><td>One command, I6 holds</td></tr>
+<tr><td>16</td><td>As-built delta + README</td><td>Stranger clones and runs goldens</td></tr>
+</table>
+<p>Week 16 records deltas against <strong>this</strong> doc. It does not rewrite the product.</p>
+<hr>
+<h2 id="21-scale-performance-ram-budget">21. Scale, performance, RAM budget</h2>
+<table>
+<tr><th>Mode</th><th>GPUs</th><th>Resident</th><th>Traces</th></tr>
+<tr><td>Daily</td><td>256–512</td><td>yes</td><td>parquet, 1 ms link snapshots</td></tr>
+<tr><td>Showcase</td><td>2048</td><td>yes, &lt; 500 MB RSS</td><td>parquet</td></tr>
+<tr><td>Large</td><td>8192</td><td>graph + live counters only</td><td>parquet on disk, 10 ms snapshots</td></tr>
+</table>
+<p><strong>Hot RAM:</strong> live flows + <code>Residual</code> + counters. Not the full event history.</p>
+<p>Back-of-envelope at 2048 GPUs (N=256): directed edges ≈ 2·(2048+2048) = 8192. <code>Residual</code> ≈ 8 KB. 200 jobs × 8 rails × 2 ring edges = 3200 live flows ≈ 1 MB. FEL &lt; 10k events queued. RSS dominated by rustc allocator + parquet buffer (cap 64 MB). <strong>Budget: 500 MB showcase, 200 MB daily.</strong></p>
+<p>Latency targets (Ultra 9, release):</p>
+<table>
+<tr><th>Operation</th><th>Target</th></tr>
+<tr><td><code>topo --gpus 256</code> (<code>G_TOT</code>)</td><td>&lt; 50 ms</td></tr>
+<tr><td>One joint admit at 512 GPUs</td><td>&lt; 10 ms</td></tr>
+<tr><td><code>run</code> default-mix-512, 60 s horizon</td><td>&lt; 30 s wall</td></tr>
+<tr><td><code>run</code> showcase 2048, 60 s horizon</td><td>&lt; 5 min wall</td></tr>
+</table>
+<p>Never packet-level. Never keep 8192-GPU traces in RAM.</p>
+<hr>
+<h2 id="22-edge-cases">22. Edge cases</h2>
+<table>
+<tr><th>Case</th><th>Rule</th></tr>
+<tr><td><span class="math">p=1</span></td><td>T=0, no flows, admit if a GPU is free</td></tr>
+<tr><td><span class="math">p=3</span> (odd ring)</td><td>Formula as written; last hop is the same chunk; do not pad to power-of-two</td></tr>
+<tr><td><span class="math">dp\cdot tp\cdot pp \ne gpu\_count</span></td><td>exit 2 (schema)</td></tr>
+<tr><td>Simultaneous arrivals</td><td>FIFO by seq (§10.4)</td></tr>
+<tr><td>Zero leftover + free GPUs</td><td>Joint reject <code>ZeroLeftover</code></td></tr>
+<tr><td>All communicators intra-node</td><td>T_pred=0, CIR=0, admit</td></tr>
+<tr><td><code>N ≤ D</code> and same-rail</td><td>Path has no spine; spine fail does not kill those jobs unless they also have cross-rail flows</td></tr>
+<tr><td><code>S &gt; U</code></td><td>Cyclic wiring §7.4; k-shortest uses existing edges only</td></tr>
+<tr><td><code>--oversub</code> does not divide 32</td><td>exit 2</td></tr>
+<tr><td>Job larger than one SU (dp&gt;32)</td><td>Allowed; rings span leaf groups; spine residual matters</td></tr>
+<tr><td>Empty mix</td><td>Legal; <code>empty-cluster</code> golden</td></tr>
+<tr><td>Fail at t before any admit</td><td>Commit empty classification; later admits see the failed element</td></tr>
+<tr><td>Fail host link of a free GPU</td><td>GPU → <code>Unavailable(FailedNic)</code>; skipped by every scan</td></tr>
+<tr><td>Two fails at same t</td><td><code>drain_fails_at</code>; one prepare, one commit, one <code>EpochAdvance</code></td></tr>
+<tr><td><code>horizon_s</code> cuts a live job</td><td><code>HorizonCut</code>; kill; <code>disrupted_step_us</code>; RateRecompute</td></tr>
+<tr><td>Integer crumb in water-fill</td><td>+1 B/s in <code>(comm, phase, src Rank)</code> order (§11.4)</td></tr>
+<tr><td><code>allow_cross_rail=false</code> and a needed edge is cross-rail</td><td><code>CrossRailUnsupported</code></td></tr>
+<tr><td>Default <code>allow_cross_rail=true</code></td><td>Cross-rail via spine is legal</td></tr>
+</table>
+<hr>
+<h2 id="23-alternatives-considered">23. Alternatives considered</h2>
+<h3 id="a-packet-level-ns-3-vs-flow-level-des">A. Packet-level ns-3 vs flow-level DES</h3>
+<table>
+<tr><th></th><th>ns-3</th><th>Flow-level (pick)</th></tr>
+<tr><td>Fidelity</td><td>PFC, DCQCN, QP</td><td>Bottleneck + last-flow</td></tr>
+<tr><td>2048 GPUs on 32 GB</td><td>No</td><td>Yes</td></tr>
+<tr><td>Deterministic goldens</td><td>Painful</td><td>Natural</td></tr>
+<tr><td>Implements this spec</td><td>Months of packets</td><td>Weeks of transcription</td></tr>
+</table>
+<p>Rejected ns-3: scale rule and laptop target. Loss: microburst fidelity. Mitigation: finite <code>B_buf</code> + last-flow metric.</p>
+<h3 id="b-milp-cp-sat-vs-residual-cost-water-fill">B. MILP / CP-SAT vs residual-cost + water-fill</h3>
+<table>
+<tr><th></th><th>MILP</th><th>Water-fill (pick)</th></tr>
+<tr><td>Optimality</td><td>Global</td><td>Local, K-bounded</td></tr>
+<tr><td>Determinism</td><td>Solver-version fragile</td><td>Closed</td></tr>
+<tr><td><code>--explain</code></td><td>Duals, not operator-native</td><td>cost_e, rates, T_pred</td></tr>
+<tr><td>Runtime at 2048</td><td>Bad without decomposition</td><td>&lt; 10 ms / admit</td></tr>
+</table>
+<p>MILP is a post-v1 flag, not a v1 dependency. The scientific claim is “joint beats naive,” not “joint is optimal.”</p>
+<h3 id="c-tor-map-vs-rail-optimized">C. ToR-map vs rail-optimized</h3>
+<p>ToR-map puts all 8 NICs of a node on one leaf. It is the standard wrong SuperPOD. DP AllReduce then crosses leaves for every hop. Rail-optimized keeps same-rank rings leaf-local for <span class="math">N\le 32</span>. Pick rail. Test <code>topo_rail_not_tor</code> exists so this cannot regress.</p>
+<h3 id="d-instant-leftover-vs-cir-leftover">D. Instant leftover vs CIR leftover</h3>
+<p>Instant leftover admits on a quiet inter-step gap and then collides at the next barrier (false admit). CIR holds <span class="math">\rho_{j,e}</span> from admit to exit. Pick CIR. Instant leftover remains a telemetry series, not an admit input.</p>
+<h3 id="e-per-rail-independent-clos-vs-shared-spines">E. Per-rail independent Clos vs shared spines</h3>
+<p>Per-rail Clos at N=32 gives S_r=0 or 1 and total spines ≠ 4, contradicting the locked <code>S=ceil(L/2)=4</code>. Shared spines match the algebra and make a spine fail a real TE event. Pick shared.</p>
+<hr>
+<h2 id="24-threat-model-security-privacy">24. Threat model / security / privacy</h2>
+<p>Local tool. Still a threat model.</p>
+<table>
+<tr><th>Threat</th><th>Severity</th><th>Mitigation</th></tr>
+<tr><td><code>--out ../../.ssh</code> path traversal</td><td>High</td><td><code>canonicalize</code>; dest must stay under CWD; reject symlink escape; no <code>~</code> expand</td></tr>
+<tr><td>Untrusted mix TOML (huge arrays, deep tables)</td><td>Med</td><td>Cap: ≤ 10_000 jobs after expand, file ≤ 8 MiB, no <code>include</code>, no dotted-key bombs beyond serde defaults</td></tr>
+<tr><td>Untrusted <code>--topo</code></td><td>Med</td><td>Same caps; unknown keys exit 2; no code exec</td></tr>
+<tr><td>Zip / parquet bomb in <code>explain --run</code></td><td>Med</td><td>Row cap 50e6; reject files &gt; 2 GiB</td></tr>
+<tr><td>Supply chain (malicious crate)</td><td>Med</td><td><code>Cargo.lock</code> committed; minimal deps; no <code>build.rs</code> net; <code>clippy -D warnings</code>; prefer <code>parquet</code> over ad-hoc parsers</td></tr>
+<tr><td>Non-determinism as an integrity bug</td><td>Med</td><td><code>BTreeMap</code> on output paths; seed in <code>meta.toml</code>; I6</td></tr>
+<tr><td>Secrets in mixes</td><td>Low</td><td>No env interpolation. Do not log absolute home paths; reports use relative <code>--out</code></td></tr>
+<tr><td>Privacy</td><td>Low</td><td>No net client in v1. Calibration never uploads</td></tr>
+</table>
+<p><code>--explain --run DIR</code> treats DIR as untrusted input.</p>
+<hr>
+<h2 id="25-observability">25. Observability</h2>
+<ul><li><code>tracing</code> + <code>RUST_LOG=fabric_sim=info,fabric_ctrl=info</code>.</li><li>Spans: <code>admit</code>, <code>evaluate_binding</code>, <code>epoch_prepare</code>, <code>epoch_commit</code>.</li><li>Counters (also in <code>report.json</code>): <code>events_processed</code>, <code>admits</code>, <code>rejects[code]</code>, <code>active_flows</code>, <code>r_avail_min</code>, <code>hotspot_links_now</code>.</li><li><code>--strict</code> asserts I1–I10 on every event that mutates residual or occupancy.</li><li>No sockets, no metrics daemon. Optional later: write <code>metrics.jsonl</code> under <code>--out</code>.</li></ul>
+<hr>
+<h2 id="26-risks-and-mitigations">26. Risks and mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Sev</th><th>Why</th><th>Mitigation</th></tr>
+<tr><td>Becomes a GPU packer</td><td>High</td><td>Packing is easier than TE</td><td>Networking rule; Example C is a weekly test; naive-vs-joint gate</td></tr>
+<tr><td>Code invents the product</td><td>High</td><td>“Small scaffold”</td><td>This doc is SoT; spec hole → patch doc first</td></tr>
+<tr><td>False admit (polarization, phase collision, incast)</td><td>High</td><td>ECMP, ignored leftover</td><td>Joint CIR + rank-aligned neighborhood; last-flow metric</td></tr>
+<tr><td>False reject (fragmented residual)</td><td>Med</td><td>K too small</td><td>K=16 neighborhood; first-fit shifts + rail rotates</td></tr>
+<tr><td>Design never ends</td><td>Med</td><td>Tone polish</td><td>Decision log is the gate</td></tr>
+<tr><td>RAM / heat</td><td>Med</td><td>Traces in RAM, packets</td><td>Flow-level; parquet; 2048 cap</td></tr>
+<tr><td>Unfair naive-vs-joint</td><td>Med</td><td>Joint gets extra toys</td><td>Same mix, same fabric, same metrics, committed baseline</td></tr>
+<tr><td>Integer / unit bug</td><td>High</td><td>bits vs bytes; β ns vs ps</td><td>Goldens in ps; <code>model_units_bytes_not_bits</code>; <code>model_beta_is_20ps_not_20ns</code></td></tr>
+<tr><td>2PC half-applied</td><td>Med</td><td>Panic mid-commit</td><td>Prepare is pure; commit is a short critical section; <code>--strict</code></td></tr>
+<tr><td>Domain drift</td><td>Low</td><td>Old notes</td><td>Domain freeze; public DC papers only</td></tr>
+</table>
+<hr>
+<h2 id="27-open-questions">27. Open Questions</h2>
+<p><strong>None.</strong> Defaults the implementation will use if a later reader “wonders”:</p>
+<table>
+<tr><th>Topic</th><th>Default</th></tr>
+<tr><td>Jitter on pattern arrivals</td><td>None. No field</td></tr>
+<tr><td>PXN</td><td>Off</td></tr>
+<tr><td><code>allow_cross_rail</code></td><td>true</td></tr>
+<tr><td>Buffer</td><td>Finite 32 MiB</td></tr>
+<tr><td>K, k</td><td>16, 8</td></tr>
+<tr><td>θ hotspot</td><td>0.80</td></tr>
+<tr><td>Seed</td><td>1</td></tr>
+<tr><td><code>--out</code> default</td><td><code>./out</code></td></tr>
+<tr><td>Row size</td><td>16 nodes</td></tr>
+<tr><td>Horizon cut</td><td>kill + charge disrupted</td></tr>
+<tr><td>p99 with n&lt;100</td><td>max</td></tr>
+<tr><td>Cost in f64 equality</td><td>1e-12 relative, then binding index</td></tr>
+<tr><td>Isolated SLO check</td><td>exit 4</td></tr>
+<tr><td>Mid-collective spine fail</td><td>abort + restart phase 0</td></tr>
+<tr><td>Two fails same t</td><td>one epoch</td></tr>
+</table>
+<hr>
+<h2 id="28-references">28. References</h2>
+<ol><li>NVIDIA DGX SuperPOD RA (H100): rail-optimized compute fabric, SU of 32 nodes / 256 GPUs, full fat-tree, 400 Gbps/port.</li><li>NVIDIA NCCL: Ring AllReduce lower bound <span class="math">t=(S/B)\cdot 2(n-1)/n + 2(n-1)\alpha</span>. Direct (pairwise) AllToAll, <span class="math">p-1</span> pair-exchange phases.</li><li>Jain et al., SIGCOMM 2013, <em>B4</em>: centralized TE, water-fill / max-min, drive utilization without breaking SLOs.</li><li>Hong et al., <em>B4 and After</em> (2018): hierarchy, residual, availability under failure.</li><li>Clos / fat-tree bisection: <span class="math">B_\mathrm{bisect}=\tfrac12 L U B</span> at the LS cut.</li><li>Internal plan: <code>Desktop/ai-cluster-fabric-plan.html</code> (problem statement, 16-week outline, naive-vs-joint claim). Not a competing spec; this document supersedes it.</li></ol>
+<p>Public datacenter papers and textbooks only.</p>
+<hr>
+<h2 id="29-key-decisions-picks-recap">29. Key Decisions (picks recap)</h2>
+<p>Full options/why live in §5. Picks only:</p>
+<table>
+<tr><th>Item</th><th>Pick</th></tr>
+<tr><td>Fabric</td><td>Rail-optimized 2-tier Clos, shared spines, G=R=8, B=400 Gbps, P=64, D=U=32</td></tr>
+<tr><td>Collectives</td><td>Ring + pairwise A2A; α=1 µs; <strong>β=20 ps/B</strong></td></tr>
+<tr><td>Leftover</td><td>CIR, s=0.05</td></tr>
+<tr><td>Naive</td><td>Node-then-rank first-fit; hop ECMP; lowest LinkId; GPU-count admit</td></tr>
+<tr><td>Joint</td><td>K=16, k=8, cost=1/(r+ε), water-fill, cheapest T_pred≤D_j</td></tr>
+<tr><td>Fail</td><td>Spine reroute-or-kill; leaf/rail kill; 2PC Arc swap</td></tr>
+<tr><td>Planner</td><td>Same engine; delay-row=16 nodes</td></tr>
+<tr><td>Clock</td><td>i128 ps + seq; single FEL</td></tr>
+<tr><td>UX</td><td>One CLI; B&amp;W tables; exit 0–5</td></tr>
+<tr><td>Stack</td><td>8 Rust crates, DAG in §6</td></tr>
+</table>
+<hr>
+<h2 id="30-pr-plan">30. PR Plan</h2>
+<p>Implementation is weeks 4–16. Each PR is independently reviewable. No PR invents a rule that is not in this document. <strong>No in-place fail mutation</strong> in any merge.</p>
+<h3 id="pr1-workspace-types-clock-fel-week-4">PR1 — Workspace, types, clock, FEL (Week 4)</h3>
+<ul><li><strong>Depends on:</strong> nothing</li><li><strong>Files:</strong> <code>Cargo.toml</code>, <code>rust-toolchain.toml</code>, <code>crates/fabric-types/<strong></code> (<code>EventKind</code> 14, </strong><code>EventPayload</code>**, <code>GpuAvail</code>, <code>JobState</code>, <code>ProcessExit</code>, IDs, <code>SimTime</code>), <code>crates/fabric-sim/src/{lib.rs,fel.rs}</code> (<code>Fel</code> API §9.4), <code>crates/fabric-te/src/main.rs</code> (clap stub)</li><li><strong>Tests:</strong> <code>clock_ps_total_order</code>, <code>fel_fires_one_event</code></li><li><strong>Description:</strong> Types a stranger can compile. One <code>JobArrive</code> round-trip. Exit 0/1 wired. No graph.</li></ul>
+<h3 id="pr2-topology-generator-topo-cli-week-5">PR2 — Topology generator + <code>topo</code> CLI (Week 5)</h3>
+<ul><li><strong>Depends on:</strong> PR1</li><li><strong>Files:</strong> <code>crates/fabric-topo/**</code> (<code>Node/Gpu/Leaf/Spine/Link/Graph</code>, <code>capacity_Bps</code> from <code>port_speed_gbps</code>, reject <code>fill!=1</code>), <code>topo</code> subcommand, <code>fixtures/topo/n32.toml</code></li><li><strong>Tests:</strong> <code>topo_n32_closed_form</code>, <code>topo_n64_closed_form</code>, <code>topo_rail_not_tor</code>, <code>topo_one_nic_per_gpu</code>, <code>topo_bisection_n32_leaf_not_spine</code>, <code>topo_ls_full_mesh_n32</code></li><li><strong>Description:</strong> §7. <code>--gpus G_TOT --dump</code> columns match §16.2. <code>--json</code> XOR <code>--dump</code>.</li></ul>
+<h3 id="pr3-collective-math-mix-loader-week-6">PR3 — Collective math + mix loader (Week 6)</h3>
+<ul><li><strong>Depends on:</strong> PR1. <strong>Takes <code>--gpus G_TOT</code></strong> (or builtin name) for <code>p &gt; G_tot</code> / isolated T; does <strong>not</strong> import <code>fabric-topo</code></li><li><strong>Files:</strong> <code>crates/fabric-model/**</code>, mix parser, <code>fixtures/mix/empty.toml</code></li><li><strong>Tests:</strong> <code>model_ring_8x64mib</code>, <code>model_ring_16x64mib</code>, <code>model_a2a_8x64mib</code>, <code>model_ring_8x64mib_47_5</code>, <code>model_beta_is_20ps_not_20ns</code>, <code>model_us_is_ps_div_1e6</code>, <code>model_units_bytes_not_bits</code>, <code>model_phase_sum_eq_closed</code>, <code>model_p1_zero</code>, <code>odd_ring_last_hop</code>, isolated-SLO → exit 4</li><li><strong>Description:</strong> §8 formulas. TOML ids stay. Load sort <code>(arrive_ps, file_index)</code>.</li></ul>
+<h3 id="pr4-residual-k-shortest-ecmp-enumerator-week-7a">PR4 — Residual + k-shortest / ECMP enumerator (Week 7a)</h3>
+<ul><li><strong>Depends on:</strong> PR2, PR3</li><li><strong>Files:</strong> <code>crates/fabric-sim/src/residual.rs</code> (<code>inject_cir</code>, <code>overflowed</code>), <code>crates/fabric-topo</code> or <code>fabric-ctrl</code> path enumerator (§11.3 zip)</li><li><strong>Tests:</strong> <code>joint_kshortest_k8</code>, <code>joint_cost_inverse_residual</code>, <code>naive_ecmp_tiebreak_lowest_linkid</code></li><li><strong>Description:</strong> Enumerator + residual live. Hop-count and <code>1/(r+ε)</code> cost. No admit yet.</li></ul>
+<h3 id="pr5-naive-admit-water-fill-week-7b">PR5 — Naive admit + water-fill (Week 7b)</h3>
+<ul><li><strong>Depends on:</strong> PR4</li><li><strong>Files:</strong> <code>crates/fabric-ctrl/src/naive.rs</code>, <code>JobTable</code>, <code>Occupancy</code>, <strong>full §11.4 water-fill</strong></li><li><strong>Tests:</strong> <code>naive_scan_order_node_then_rank</code>, <code>naive_admit_gpu_count_only</code>, <code>compute_before_first_collective</code>, <code>joint_waterfill_maxmin</code></li><li><strong>Description:</strong> Land the complete <code>water_fill</code> function. Naive uses it on <code>c_e−cir</code>; <code>Err</code> ⇒ rate 0, still admit. <code>JobState</code> table. Step 0 at <code>arrive+compute_ps</code>.</li></ul>
+<h3 id="pr6-traces-report-run-naive-golden-week-7c">PR6 — Traces, report, <code>run</code>, naive golden (Week 7c)</h3>
+<ul><li><strong>Depends on:</strong> PR5</li><li><strong>Files:</strong> <code>crates/fabric-trace/<strong></code>, <code>crates/fabric-report/</strong></code>, <code>run</code>, <code>admit.jsonl</code> writer</li><li><strong>Tests:</strong> <code>replay_seed_deterministic</code>; golden <code>empty-cluster</code>; commit <code>fixtures/golden/default-mix-512/naive.report.json</code></li><li><strong>Description:</strong> Parquet §9.7, integer-us <code>report.json</code>, stdout summary §16.2.</li></ul>
+<h3 id="pr7-bindings-explain-skeleton-week-8">PR7 — Bindings + explain skeleton (Week 8)</h3>
+<ul><li><strong>Depends on:</strong> PR6</li><li><strong>Files:</strong> <code>crates/fabric-ctrl/src/joint.rs</code> (generator), <code>explain</code> reads <code>admit.jsonl</code></li><li><strong>Tests:</strong> <code>joint_k16_bound</code></li><li><strong>Description:</strong> §13.1–13.2. <code>skip_free_gpus</code>. Explain field order. Placeholders OK for cost until PR8.</li></ul>
+<h3 id="pr8-joint-evaluate-example-c-weeks-9-10">PR8 — Joint evaluate + Example C (Weeks 9–10)</h3>
+<ul><li><strong>Depends on:</strong> PR7, PR5 (water-fill already landed)</li><li><strong>Files:</strong> <code>evaluate</code> / <code>select_code</code>, Example C fixture (<code>inject_cir</code> + <code>Occupancy</code>)</li><li><strong>Tests:</strong> <code>joint_reject_zero_leftover</code>, <code>joint_admit_cheapest_feasible</code>, <code>naive_may_overadmit</code>, <code>simultaneous_fifo_admit</code>, <code>scratch_not_used_by_jobs</code></li><li><strong>Description:</strong> §13.3–13.5 only. Does <strong>not</strong> reimplement water-fill. Joint vs naive on default-mix. Beat <code>hotspot_us</code> + completions or <code>NOTE.md</code>.</li></ul>
+<h3 id="pr9-failure-2pc-weeks-11-12">PR9 — Failure + 2PC (Weeks 11–12)</h3>
+<ul><li><strong>Depends on:</strong> PR8</li><li><strong>Files:</strong> <code>epoch.rs</code>, Fail* handlers, <code>HorizonCut</code></li><li><strong>Tests:</strong> <code>fail_spine_reroute_or_kill</code>, <code>fail_leaf_kills_single_homed</code>, <code>fail_dead_zero_bytes</code>, <code>epoch_2pc_arc_swap</code>; golden <code>spine-down</code></li><li><strong>Description:</strong> §14 as specified. Prepare returns <code>{graph&#x27;,kills,reroutes,residual&#x27;}</code>. <strong>No in-place mutation in this or any earlier PR.</strong></li></ul>
+<h3 id="pr10-planner-deltas-week-13">PR10 — Planner + deltas (Week 13)</h3>
+<ul><li><strong>Depends on:</strong> PR8; PR9 so <code>--fail</code> composes</li><li><strong>Files:</strong> <code>plan.rs</code>, <code>plan --fail</code>, restore scan</li><li><strong>Tests:</strong> <code>planner_same_engine</code>, <code>planner_delay_row_b</code></li><li><strong>Description:</strong> §15. Always run no-delta baseline.</li></ul>
+<h3 id="pr11-remaining-goldens-week-14">PR11 — Remaining goldens (Week 14)</h3>
+<ul><li><strong>Depends on:</strong> PR9, PR10</li><li><strong>Files:</strong> <code>moe-burst</code>, <code>row-late</code>, <code>example-c</code> fixtures</li><li><strong>Tests:</strong> all named goldens under <code>cargo test --workspace</code></li><li><strong>Description:</strong> §18.4 tables.</li></ul>
+<h3 id="pr12-invariants-parity-week-15">PR12 — Invariants + parity (Week 15)</h3>
+<ul><li><strong>Depends on:</strong> PR11</li><li><strong>Files:</strong> I1–I10 hooks, CI (<code>public_dependency</code> / <code>cargo deny</code>, not grep)</li><li><strong>Tests:</strong> I1–I10 on every golden; <code>cli_exit_codes</code>; <code>incast_last_flow_metric</code>; <code>parity_log_equals_counters</code></li><li><strong>Description:</strong> One command is the suite.</li></ul>
+<h3 id="pr13-as-built-readme-freeze-week-16">PR13 — As-built + README freeze (Week 16)</h3>
+<ul><li><strong>Depends on:</strong> PR12</li><li><strong>Files:</strong> <code>README.md</code>, <code>docs/ASBUILT.md</code></li><li><strong>Tests:</strong> none new unless a documented delta requires one</li><li><strong>Description:</strong> Stranger path: clone, <code>cargo test --workspace</code>, <code>topo --gpus 256 --dump</code>, <code>default-mix-512</code>.</li></ul>
+<h3 id="dependency-graph">Dependency graph</h3>
+<div class="figure"><svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PR dependency graph">
+  <rect x="1" y="1" width="718" height="218" fill="#fff" stroke="#000"/>
+  <text x="360" y="16" text-anchor="middle" font-size="11" font-family="Arial,sans-serif">Figure 9. PR order. Water-fill lands in PR5. Fail+2PC is PR9. No in-place mutation.</text>
+  <g font-family="Georgia,serif" font-size="11">
+    <rect x="16" y="90" width="70" height="28" fill="#fff" stroke="#000"/><text x="51" y="108" text-anchor="middle">PR1</text>
+    <rect x="110" y="50" width="70" height="28" fill="#fff" stroke="#000"/><text x="145" y="68" text-anchor="middle">PR2</text>
+    <rect x="110" y="130" width="70" height="28" fill="#fff" stroke="#000"/><text x="145" y="148" text-anchor="middle">PR3</text>
+    <rect x="204" y="90" width="70" height="28" fill="#fff" stroke="#000"/><text x="239" y="108" text-anchor="middle">PR4</text>
+    <rect x="298" y="90" width="70" height="28" fill="#fff" stroke="#000"/><text x="333" y="108" text-anchor="middle">PR5</text>
+    <rect x="392" y="90" width="70" height="28" fill="#fff" stroke="#000"/><text x="427" y="108" text-anchor="middle">PR6</text>
+    <rect x="486" y="50" width="70" height="28" fill="#fff" stroke="#000"/><text x="521" y="68" text-anchor="middle">PR7</text>
+    <rect x="486" y="130" width="70" height="28" fill="#fff" stroke="#000"/><text x="521" y="148" text-anchor="middle">PR8</text>
+    <rect x="580" y="50" width="56" height="28" fill="#fff" stroke="#000"/><text x="608" y="68" text-anchor="middle">PR9</text>
+    <rect x="580" y="130" width="56" height="28" fill="#fff" stroke="#000"/><text x="608" y="148" text-anchor="middle">PR10</text>
+    <rect x="654" y="70" width="50" height="24" fill="#fff" stroke="#000"/><text x="679" y="86" text-anchor="middle">PR11</text>
+    <rect x="654" y="110" width="50" height="24" fill="#fff" stroke="#000"/><text x="679" y="126" text-anchor="middle">PR12</text>
+    <rect x="654" y="150" width="50" height="24" fill="#fff" stroke="#000"/><text x="679" y="166" text-anchor="middle">PR13</text>
+  </g>
+  <g stroke="#000" fill="none">
+    <line x1="86" y1="104" x2="110" y2="64"/>
+    <line x1="86" y1="104" x2="110" y2="144"/>
+    <line x1="180" y1="64" x2="204" y2="100"/>
+    <line x1="180" y1="144" x2="204" y2="108"/>
+    <line x1="274" y1="104" x2="298" y2="104"/>
+    <line x1="368" y1="104" x2="392" y2="104"/>
+    <line x1="462" y1="104" x2="486" y2="64"/>
+    <line x1="274" y1="104" x2="486" y2="144"/>
+    <line x1="556" y1="64" x2="580" y2="64"/>
+    <line x1="556" y1="144" x2="580" y2="144"/>
+    <line x1="636" y1="64" x2="654" y2="82"/>
+    <line x1="636" y1="144" x2="654" y2="82"/>
+    <line x1="679" y1="94" x2="679" y2="110"/>
+    <line x1="679" y1="134" x2="679" y2="150"/>
+  </g>
+  <text x="360" y="204" text-anchor="middle" font-size="10" font-family="Arial,sans-serif">PR1 types · PR2 topo · PR3 model · PR4 residual/paths · PR5 naive+water-fill · PR6 traces</text>
+</svg></div>
+<hr>
+<p><em>End of v0.1 design lock. Implementation transcribes. If the code wants a new behavior, this document changes first.</em></p>
+<footer>
+Identical to fabric-te-design.md. Black and white. Diagrams are laid out for print, not Mermaid runtime. Source of truth after freeze.
+</footer>
+</main>
+</body>
+</html>
