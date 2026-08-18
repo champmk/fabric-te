@@ -195,11 +195,19 @@ pub fn load_mix(path: impl AsRef<Path>) -> Result<Mix, MixError> {
             deadline_s: job.deadline_s,
         });
     }
+    const MAX_JOBS: usize = 1_000_000;
     for pat in file.pattern {
+        if raw.len().saturating_add(pat.count as usize) > MAX_JOBS {
+            return Err(MixError::Schema("pattern expands past 1000000 jobs".into()));
+        }
         for i in 0..pat.count {
+            let id = pat
+                .start_id
+                .checked_add(i)
+                .ok_or_else(|| MixError::Schema("pattern start_id + i overflows u32".into()))?;
             raw.push(RawJob {
                 file_index: 0,
-                id: pat.start_id + i,
+                id,
                 arrive_s: pat.start_s + f64::from(i) * pat.every_s,
                 gpu_count: pat.gpu_count,
                 dp: pat.dp,
