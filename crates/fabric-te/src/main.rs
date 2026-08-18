@@ -1,8 +1,9 @@
-//! clap stub. Exit 0 on --help/--version; exit 1 on usage. No topo/run yet.
+//! clap. `topo` is live (§16.1–§16.2). `run`/`plan`/`explain` stay stubs (exit 1).
 
 use std::io::{self, Write};
 
 use clap::{error::ErrorKind, Parser, Subcommand};
+use fabric_topo::{default_rails, format_endpoint, Graph};
 use fabric_types::ProcessExit;
 
 #[derive(Parser, Debug)]
@@ -18,8 +19,24 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Print closed-form topology (PR2).
-    Topo,
+    /// Print closed-form topology.
+    Topo {
+        /// GPU count G_tot. Must be divisible by --rails.
+        #[arg(long)]
+        gpus: Option<u32>,
+        /// Rails (= NICs per node). Sets G = R.
+        #[arg(long, default_value_t = default_rails())]
+        rails: u32,
+        /// Oversubscription K_Ω ∈ {1,2,4,8,16,32}.
+        #[arg(long, default_value_t = 1)]
+        oversub: u32,
+        /// Human tables. XOR --json.
+        #[arg(long)]
+        dump: bool,
+        /// Machine JSON. XOR --dump.
+        #[arg(long)]
+        json: bool,
+    },
     /// Run a mix (PR6).
     Run,
     /// What-if plan (PR10).
@@ -34,11 +51,7 @@ fn main() {
 
 fn run() -> i32 {
     match Cli::try_parse() {
-        Ok(_cli) => {
-            // Handlers land in later PRs. Exit 0 here would treat `topo`/`run` as success.
-            let _ = writeln!(io::stderr(), "error[E_USAGE]: subcommand not implemented");
-            ProcessExit::Usage as i32
-        }
+        Ok(cli) => dispatch(cli),
         Err(e) if matches!(e.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) => {
             let _ = e.print();
             ProcessExit::Ok as i32
@@ -47,5 +60,81 @@ fn run() -> i32 {
             let _ = e.print();
             ProcessExit::Usage as i32
         }
+    }
+}
+
+fn dispatch(cli: Cli) -> i32 {
+    match cli.command {
+        Command::Topo {
+            gpus,
+            rails,
+            oversub,
+            dump,
+            json,
+        } => cmd_topo(gpus, rails, oversub, dump, json),
+        Command::Run | Command::Plan | Command::Explain => {
+            let _ = writeln!(io::stderr(), "error[E_USAGE]: subcommand not implemented");
+            ProcessExit::Usage as i32
+        }
+    }
+}
+
+fn cmd_topo(gpus: Option<u32>, rails: u32, oversub: u32, dump: bool, json: bool) -> i32 {
+    if dump && json {
+        let _ = writeln!(
+            io::stderr(),
+            "error[E_USAGE]: --dump and --json are mutually exclusive"
+        );
+        return ProcessExit::Usage as i32;
+    }
+    let Some(g_tot) = gpus else {
+        let _ = writeln!(io::stderr(), "error[E_USAGE]: missing --gpus");
+        return ProcessExit::Usage as i32;
+    };
+    let graph = match Graph::generate(g_tot, rails, oversub) {
+        Ok(g) => g,
+        Err(e) => {
+            let _ = writeln!(io::stderr(), "error[{}]: {}", e.e_code(), e);
+            return ProcessExit::BadInput as i32;
+        }
+    };
+    let n = graph.params.nodes;
+    let l = graph.leaves.len();
+    let s = graph.spines.len();
+    let e_host = graph.e_host();
+    let e_ls = graph.e_ls();
+    let b = graph.b_bisect_gbps();
+    let mut out = io::stdout();
+    let write_ok = if json {
+        writeln!(
+            out,
+            "{{\"N\":{n},\"L\":{l},\"S\":{s},\"E_host\":{e_host},\"E_ls\":{e_ls},\"B_bisect_gbps\":{b}}}"
+        )
+        .is_ok()
+    } else if dump {
+        (|| {
+            writeln!(out, "N L S E_host E_ls B_bisect_gbps")?;
+            writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}")?;
+            writeln!(out, "link_id src dst")?;
+            for link in graph.links.iter().take(16) {
+                writeln!(
+                    out,
+                    "{} {} {}",
+                    link.id.0,
+                    format_endpoint(link.src),
+                    format_endpoint(link.dst)
+                )?;
+            }
+            Ok::<(), io::Error>(())
+        })()
+        .is_ok()
+    } else {
+        writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}").is_ok()
+    };
+    if write_ok {
+        ProcessExit::Ok as i32
+    } else {
+        let _ = writeln!(io::stderr(), "error[E_IO]: stdout write failed");
+        ProcessExit::IoAbort as i32
     }
 }

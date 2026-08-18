@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/fabric-types",
     "crates/fabric-sim",
+    "crates/fabric-topo",
     "crates/fabric-te",
 ]
 
@@ -14,5 +15,8 @@ version = "0.1.0"
 
 [workspace.dependencies]
 clap = { version = "=4.5.23", features = ["derive"] }
+serde = { version = "=1.0.210", features = ["derive"] }
+toml = "=0.5.11"
 fabric-types = { path = "crates/fabric-types" }
 fabric-sim = { path = "crates/fabric-sim" }
+fabric-topo = { path = "crates/fabric-topo" }
