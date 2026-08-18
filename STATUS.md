@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: design lock frozen. **No production code yet.**
+Phase: PR1 implemented. **Next: PR2.**
 
-**Next:** PR1 — workspace, types, clock, FEL.
+**Next:** PR2 — topology generator + `topo` CLI.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: design lock frozen. **No production code yet.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR1)
+## Read for next (PR2)
 
-`docs/DESIGN.md` §4 non-goals, §5 picks (skim), §9.1–§9.2 types/enums (`EventKind` 14, `EventPayload`, `JobState`, `ProcessExit`, IDs, `SimTime`), §9.4 `Fel` API, §10.1 clock, §16.3 exit 0/1, §30 PR1.
+`docs/DESIGN.md` §7 (topology math, IDs, Example A/A2), §9.3 `Graph`/`Link`/`TopoParams` (no residual), §9.5 topo TOML, §16.1–§16.2 `topo` grammar and `--dump` columns, §30 PR2.
 
-Do **not** implement topology, collectives, residual, or admit in PR1.
+Do **not** implement collectives, residual, admit, or `run` in PR2.
 
 ---
 
@@ -26,7 +26,7 @@ Do **not** implement topology, collectives, residual, or admit in PR1.
 | --- | --- |
 | Design lock frozen (`docs/DESIGN.md`) | done |
 | Persistent session files (`AGENTS.md`, this file) | done |
-| Git repo exists | done (docs only) |
+| Git repo exists | done |
 | `topo --gpus 256 --dump` matches Example A | not started |
 | `run --policy naive` + `run --policy joint` on default-mix | not started |
 | `explain --job` reads `admit.jsonl` | not started |
@@ -43,7 +43,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 
 | PR | Title | Depends | Spec | Tests (must go green) | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Workspace, types, clock, FEL | — | §9, §10.1, §30 PR1 | `clock_ps_total_order`, `fel_fires_one_event` | **not started** |
+| 1 | Workspace, types, clock, FEL | — | §9, §10.1, §30 PR1 | `clock_ps_total_order`, `fel_fires_one_event` | **done** |
 | 2 | Topology generator + `topo` | 1 | §7, §16.2 | `topo_n32_closed_form`, `topo_n64_closed_form`, `topo_rail_not_tor`, `topo_one_nic_per_gpu`, `topo_bisection_n32_leaf_not_spine`, `topo_ls_full_mesh_n32` | not started |
 | 3 | Collective math + mix loader | 1 | §8 | `model_ring_8x64mib`, `model_ring_16x64mib`, `model_a2a_8x64mib`, `model_ring_8x64mib_47_5`, `model_beta_is_20ps_not_20ns`, `model_us_is_ps_div_1e6`, `model_units_bytes_not_bits`, `model_phase_sum_eq_closed`, `model_p1_zero`, `odd_ring_last_hop`, isolated SLO → exit 4 | not started |
 | 4 | Residual + k-shortest / ECMP | 2, 3 | §11.1–§11.3 | `joint_kshortest_k8`, `joint_cost_inverse_residual`, `naive_ecmp_tiebreak_lowest_linkid` | not started |
@@ -90,3 +90,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-17 | Design lock written, reviewed (3 rounds), frozen. |
 | 2026-08-18 | Repo + `AGENTS.md` + this checklist. Next = PR1. |
 | 2026-08-18 | Repo moved to `Desktop/Projects/fabric-te`. |
+| 2026-08-18 | PR1 landed: workspace, types, `s_to_ps`, FEL, clap stub (exit 0/1). Next = PR2. |
