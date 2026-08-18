@@ -89,3 +89,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | --- | --- |
 | 2026-08-17 | Design lock written, reviewed (3 rounds), frozen. |
 | 2026-08-18 | Repo + `AGENTS.md` + this checklist. Next = PR1. |
+| 2026-08-18 | Repo moved to `Desktop/Projects/fabric-te`. |
