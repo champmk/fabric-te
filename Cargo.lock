@@ -111,6 +111,7 @@ dependencies = [
 name = "fabric-sim"
 version = "0.1.0"
 dependencies = [
+ "fabric-topo",
  "fabric-types",
 ]
 

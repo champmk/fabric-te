@@ -8,3 +8,4 @@ description = "Discrete-event FEL and sim clock for fabric-te"
 
 [dependencies]
 fabric-types.workspace = true
+fabric-topo.workspace = true
