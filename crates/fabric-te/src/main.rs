@@ -1,5 +1,7 @@
 //! clap stub. Exit 0 on --help/--version; exit 1 on usage. No topo/run yet.
 
+use std::io::{self, Write};
+
 use clap::{error::ErrorKind, Parser, Subcommand};
 use fabric_types::ProcessExit;
 
@@ -32,7 +34,11 @@ fn main() {
 
 fn run() -> i32 {
     match Cli::try_parse() {
-        Ok(_cli) => ProcessExit::Ok as i32,
+        Ok(_cli) => {
+            // Handlers land in later PRs. Exit 0 here would treat `topo`/`run` as success.
+            let _ = writeln!(io::stderr(), "error[E_USAGE]: subcommand not implemented");
+            ProcessExit::Usage as i32
+        }
         Err(e) if matches!(e.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) => {
             let _ = e.print();
             ProcessExit::Ok as i32
