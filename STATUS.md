@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: PR2 implemented. **Next: PR3.**
+Phase: PR2 + PR3 implemented. **Next: PR4.**
 
-**Next:** PR3 — collective math + mix loader.
+**Next:** PR4 — residual + k-shortest / ECMP.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: PR2 implemented. **Next: PR3.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR3)
+## Read for next (PR4)
 
-`docs/DESIGN.md` §8 (collective math, Example B/C isolated T), §9.6 mix TOML, §16 exit 4 isolated-SLO, §30 PR3.
+`docs/DESIGN.md` §11.1–§11.3 residual + k-shortest, §7.4 LS neighbors, §30 PR4.
 
-Do **not** import `fabric-topo`. No residual, admit, or `run` in PR3.
+Do **not** implement admit, water-fill (PR5), or `run`.
 
 ---
 
@@ -45,7 +45,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | --- | --- | --- | --- | --- | --- |
 | 1 | Workspace, types, clock, FEL | — | §9, §10.1, §30 PR1 | `clock_ps_total_order`, `fel_fires_one_event` | **done** |
 | 2 | Topology generator + `topo` | 1 | §7, §16.2 | `topo_n32_closed_form`, `topo_n64_closed_form`, `topo_rail_not_tor`, `topo_one_nic_per_gpu`, `topo_bisection_n32_leaf_not_spine`, `topo_ls_full_mesh_n32` | **done** |
-| 3 | Collective math + mix loader | 1 | §8 | `model_ring_8x64mib`, `model_ring_16x64mib`, `model_a2a_8x64mib`, `model_ring_8x64mib_47_5`, `model_beta_is_20ps_not_20ns`, `model_us_is_ps_div_1e6`, `model_units_bytes_not_bits`, `model_phase_sum_eq_closed`, `model_p1_zero`, `odd_ring_last_hop`, isolated SLO → exit 4 | not started |
+| 3 | Collective math + mix loader | 1 | §8 | `model_ring_8x64mib`, `model_ring_16x64mib`, `model_a2a_8x64mib`, `model_ring_8x64mib_47_5`, `model_beta_is_20ps_not_20ns`, `model_us_is_ps_div_1e6`, `model_units_bytes_not_bits`, `model_phase_sum_eq_closed`, `model_p1_zero`, `odd_ring_last_hop`, isolated SLO → exit 4 | **done** |
 | 4 | Residual + k-shortest / ECMP | 2, 3 | §11.1–§11.3 | `joint_kshortest_k8`, `joint_cost_inverse_residual`, `naive_ecmp_tiebreak_lowest_linkid` | not started |
 | 5 | Naive admit + water-fill | 4 | §11.4, §12 | `naive_scan_order_node_then_rank`, `naive_admit_gpu_count_only`, `compute_before_first_collective`, `joint_waterfill_maxmin` | not started |
 | 6 | Traces, report, `run`, naive golden | 5 | §9.7–§9.9, §16 | `replay_seed_deterministic`; golden `empty-cluster`; `default-mix-512` naive report | not started |
@@ -93,4 +93,5 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR1 landed: workspace, types, `s_to_ps`, FEL, clap stub (exit 0/1). Next = PR2. |
 | 2026-08-18 | PR body format locked: Problem / Solution / Review Order / Testing. Caveman-short. `AGENTS.md`. |
 | 2026-08-18 | PR1 rev2: code-review + security-review. FEL seq, drain/CLI/s_to_ps tests; NaN clock reject. |
-| 2026-08-18 | PR2 landed: `fabric-topo` Clos builder, `topo` CLI, `fixtures/topo/n32.toml`. Next = PR3. |
+| 2026-08-18 | PR2 landed: `fabric-topo` Clos builder, `topo` CLI, `fixtures/topo/n32.toml`. |
+| 2026-08-18 | PR3 rebased onto master: `fabric-model` + mix loader. Next = PR4. |
