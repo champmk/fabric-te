@@ -16,6 +16,27 @@ Read these **before writing or planning code**. Do not reconstruct the design fr
 - No packet-level sim, trainer, RL, OCS, or visual globe in v1.
 - Update `STATUS.md` in the same change that lands or abandons work.
 
+## PR description (always)
+
+Every GitHub PR body uses exactly these four headings. Caveman: short fragments, no filler, no restating the spec.
+
+```
+## Problem
+<why this slice exists. 1–2 lines.>
+
+## Solution
+<what landed. 1–3 lines. files/crates, not essay.>
+
+## Review Order
+1. <file — why first>
+2. ...
+
+## Testing
+<exact commands + named tests. expected exit if it matters.>
+```
+
+Do not add extra sections. Do not write this format only when asked.
+
 ## Commands
 
 ```
