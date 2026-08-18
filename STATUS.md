@@ -70,6 +70,7 @@ Water-fill is **PR5**, not PR8. Fail/2PC is **PR9**. No in-place graph mutation 
 - Occupancy lives on `JobTable`, not `Arc<Graph>`.
 - EventKind is **14** (includes `LeafFail`, `HorizonCut`).
 - CLI: `topo` `run` `plan` `explain`. No v1 visual sim.
+- ID newtypes stay repetitive on purpose. No `type GpuId = u32`. See DESIGN §5.
 
 ---
 
@@ -92,3 +93,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | Repo moved to `Desktop/Projects/fabric-te`. |
 | 2026-08-18 | PR1 landed: workspace, types, `s_to_ps`, FEL, clap stub (exit 0/1). Next = PR2. |
 | 2026-08-18 | PR body format locked: Problem / Solution / Review Order / Testing. Caveman-short. `AGENTS.md`. |
+| 2026-08-18 | ID newtypes: repeated structs are the lock, not a cleanup target. |

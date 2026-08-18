@@ -1,4 +1,7 @@
 //! Shared IDs, closed event set, and sim-time. Transcribed from docs/DESIGN.md §9.1–§9.2.
+//!
+//! One newtype per ID on purpose (DESIGN §5): `GpuId` ≠ `LinkId`.
+//! Repeated derives are the cost. Do not `type GpuId = u32`.
 
 #![forbid(unsafe_code)]
 
