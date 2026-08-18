@@ -44,7 +44,7 @@ impl Fel {
     /// Schedule at `ps`. `seq` is `next_seq`, then increment.
     pub fn push(&mut self, ps: i128, kind: EventKind, payload: EventPayload) {
         let seq = self.next_seq;
-        self.next_seq = self.next_seq.saturating_add(1);
+        self.next_seq = self.next_seq.checked_add(1).expect("Fel seq overflow");
         self.insert(Event {
             t: SimTime { ps, seq },
             kind,

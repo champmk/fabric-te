@@ -92,3 +92,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | Repo moved to `Desktop/Projects/fabric-te`. |
 | 2026-08-18 | PR1 landed: workspace, types, `s_to_ps`, FEL, clap stub (exit 0/1). Next = PR2. |
 | 2026-08-18 | PR body format locked: Problem / Solution / Review Order / Testing. Caveman-short. `AGENTS.md`. |
+| 2026-08-18 | PR1 rev2: code-review + security-review. FEL seq, drain/CLI/s_to_ps tests; NaN clock reject. |

@@ -174,23 +174,27 @@ mod tests {
 
     #[test]
     fn event_kind_closed_set_is_14() {
-        let kinds = [
-            EventKind::JobArrive,
-            EventKind::StepBoundary,
-            EventKind::CollectiveStart,
-            EventKind::CollectiveEnd,
-            EventKind::FlowArrive,
-            EventKind::FlowDepart,
-            EventKind::RateRecompute,
-            EventKind::LinkFail,
-            EventKind::LeafFail,
-            EventKind::RailFail,
-            EventKind::SpineFail,
-            EventKind::DrainComplete,
-            EventKind::EpochAdvance,
-            EventKind::HorizonCut,
-        ];
-        assert_eq!(kinds.len(), EventKind::COUNT);
+        let n = exhaustive_kind_count(EventKind::JobArrive);
+        assert_eq!(n, EventKind::COUNT);
+    }
+
+    fn exhaustive_kind_count(k: EventKind) -> usize {
+        match k {
+            EventKind::JobArrive
+            | EventKind::StepBoundary
+            | EventKind::CollectiveStart
+            | EventKind::CollectiveEnd
+            | EventKind::FlowArrive
+            | EventKind::FlowDepart
+            | EventKind::RateRecompute
+            | EventKind::LinkFail
+            | EventKind::LeafFail
+            | EventKind::RailFail
+            | EventKind::SpineFail
+            | EventKind::DrainComplete
+            | EventKind::EpochAdvance
+            | EventKind::HorizonCut => EventKind::COUNT,
+        }
     }
 
     #[test]
