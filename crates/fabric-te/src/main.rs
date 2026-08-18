@@ -105,28 +105,36 @@ fn cmd_topo(gpus: Option<u32>, rails: u32, oversub: u32, dump: bool, json: bool)
     let e_ls = graph.e_ls();
     let b = graph.b_bisect_gbps();
     let mut out = io::stdout();
-    if json {
-        let _ = writeln!(
+    let write_ok = if json {
+        writeln!(
             out,
             "{{\"N\":{n},\"L\":{l},\"S\":{s},\"E_host\":{e_host},\"E_ls\":{e_ls},\"B_bisect_gbps\":{b}}}"
-        );
-        return ProcessExit::Ok as i32;
+        )
+        .is_ok()
+    } else if dump {
+        (|| {
+            writeln!(out, "N L S E_host E_ls B_bisect_gbps")?;
+            writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}")?;
+            writeln!(out, "link_id src dst")?;
+            for link in graph.links.iter().take(16) {
+                writeln!(
+                    out,
+                    "{} {} {}",
+                    link.id.0,
+                    format_endpoint(link.src),
+                    format_endpoint(link.dst)
+                )?;
+            }
+            Ok::<(), io::Error>(())
+        })()
+        .is_ok()
+    } else {
+        writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}").is_ok()
+    };
+    if write_ok {
+        ProcessExit::Ok as i32
+    } else {
+        let _ = writeln!(io::stderr(), "error[E_IO]: stdout write failed");
+        ProcessExit::IoAbort as i32
     }
-    if dump {
-        let _ = writeln!(out, "N L S E_host E_ls B_bisect_gbps");
-        let _ = writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}");
-        let _ = writeln!(out, "link_id src dst");
-        for link in graph.links.iter().take(16) {
-            let _ = writeln!(
-                out,
-                "{} {} {}",
-                link.id.0,
-                format_endpoint(link.src),
-                format_endpoint(link.dst)
-            );
-        }
-        return ProcessExit::Ok as i32;
-    }
-    let _ = writeln!(out, "{n} {l} {s} {e_host} {e_ls} {b}");
-    ProcessExit::Ok as i32
 }
