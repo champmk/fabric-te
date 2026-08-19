@@ -1,10 +1,14 @@
-//! PR6 goldens: empty-cluster, default-mix-512 naive, replay determinism.
+//! Goldens: empty-cluster, default-mix-512, spine-down, moe-burst, row-late, example-c.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use fabric_ctrl::{example_c, run_sim, RunConfig};
+use fabric_model::{load_mix, pairwise_alltoall_ps};
+use fabric_types::Policy;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_fabric-te"))
@@ -210,4 +214,204 @@ fn spine_down_golden() {
         assert_eq!(g["counts"]["kills"], 0);
     }
     let _ = fs::remove_dir_all(&out_n);
+}
+
+fn run_plan_cli(topo: &str, mix: &Path, out: &Path, deltas: &[&str]) -> std::process::Output {
+    let _ = fs::remove_dir_all(out);
+    let mut cmd = bin();
+    cmd.args([
+        "plan",
+        "--topo",
+        topo,
+        "--mix",
+        mix.to_str().expect("mix utf8"),
+        "--out",
+        out.to_str().expect("out utf8"),
+    ]);
+    for d in deltas {
+        cmd.args(["--delta", d]);
+    }
+    cmd.output().expect("fabric-te plan")
+}
+
+fn copy_golden_if_missing(src: &Path, dest: &Path) {
+    if dest.exists() {
+        return;
+    }
+    if let Some(p) = dest.parent() {
+        fs::create_dir_all(p).unwrap_or_else(|e| panic!("mkdir {}: {e}", p.display()));
+    }
+    fs::copy(src, dest).unwrap_or_else(|e| panic!("copy golden {}: {e}", dest.display()));
+}
+
+/// Gate field. `mean_link_util_ppm` is recorded but never a pass/fail.
+fn assert_last_flow_present(r: &Value) {
+    let v = r
+        .get("metrics")
+        .and_then(|m| m.get("last_flow_collective_us_max"))
+        .expect("last_flow_collective_us_max present");
+    assert!(
+        v.is_number(),
+        "last_flow_collective_us_max must be an integer, got {v}"
+    );
+}
+
+fn admit_lines(out: &Path) -> Vec<Value> {
+    let s = fs::read_to_string(out.join("admit.jsonl")).expect("admit.jsonl");
+    s.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("admit jsonl"))
+        .collect()
+}
+
+fn job_row<'a>(r: &'a Value, id: u32) -> &'a Value {
+    r["jobs"]
+        .as_array()
+        .expect("jobs")
+        .iter()
+        .find(|j| j["job_id"] == id)
+        .unwrap_or_else(|| panic!("job {id}"))
+}
+
+#[test]
+fn moe_burst_golden() {
+    let mix = fixtures().join("mix/moe-burst.toml");
+    let t = pairwise_alltoall_ps(4, 67_108_864, 47.5e9);
+    assert!(
+        t < 2_000_000_000,
+        "isolated T_a2a(p=4)={t} ps must be < 2 ms"
+    );
+    for policy in ["joint", "naive"] {
+        let out = out_dir(&format!("moe-burst-{policy}"));
+        let got = run_policy("n64", &mix, &out, 1, policy);
+        let err = String::from_utf8_lossy(&got.stderr);
+        assert_eq!(
+            got.status.code(),
+            Some(0),
+            "moe-burst {policy} stderr={err}"
+        );
+        let r = read_report(&out);
+        assert_eq!(r["counts"]["admits"], 4, "moe-burst {policy} admits");
+        assert_eq!(r["counts"]["rejects"], 0, "moe-burst {policy} rejects");
+        assert_last_flow_present(&r);
+        let golden = fixtures().join(format!("golden/moe-burst/{policy}.report.json"));
+        copy_golden_if_missing(&out.join("report.json"), &golden);
+        let g: Value = serde_json::from_str(&fs::read_to_string(&golden).expect("golden"))
+            .expect("golden json");
+        assert_eq!(g["counts"]["admits"], 4);
+        assert_eq!(g["counts"]["rejects"], 0);
+        assert_last_flow_present(&g);
+        let _ = fs::remove_dir_all(&out);
+    }
+}
+
+#[test]
+fn row_late_golden() {
+    let mix = fixtures().join("mix/row-late.toml");
+    let out = out_dir("row-late");
+    let got = run_plan_cli("n256", &mix, &out, &["delay-row=B"]);
+    let err = String::from_utf8_lossy(&got.stderr);
+    assert_eq!(got.status.code(), Some(0), "row-late stderr={err}");
+    let r = read_report(&out);
+    assert_eq!(r["plan"]["gpus_removed"], 128, "gpus_removed");
+    assert_eq!(r["counts"]["admits"], 10, "row-late admits");
+    assert_eq!(r["counts"]["rejects"], 0, "row-late rejects");
+    assert_eq!(r["plan"]["vs_baseline"]["admits"], 10, "vs_baseline.admits");
+    let mut admits = 0u32;
+    for rec in admit_lines(&out) {
+        if rec["decision"] != "admit" {
+            continue;
+        }
+        admits += 1;
+        let map = rec["chosen"]["map"].as_array().expect("chosen.map");
+        for pair in map {
+            let g = pair[1].as_u64().expect("gpu id") as u32;
+            let node = g / 8;
+            assert!(
+                !(16..32).contains(&node),
+                "bound GpuId {g} node {node} ∈ [16,32)"
+            );
+        }
+    }
+    assert_eq!(admits, 10);
+    let golden = fixtures().join("golden/row-late/joint.report.json");
+    copy_golden_if_missing(&out.join("report.json"), &golden);
+    let g: Value =
+        serde_json::from_str(&fs::read_to_string(&golden).expect("golden")).expect("golden json");
+    assert_eq!(g["plan"]["gpus_removed"], 128);
+    assert_eq!(g["counts"]["admits"], 10);
+    assert_eq!(g["counts"]["rejects"], 0);
+    assert_eq!(g["plan"]["vs_baseline"]["admits"], 10);
+    let _ = fs::remove_dir_all(&out);
+}
+
+#[test]
+fn example_c_golden() {
+    let mix_path = fixtures().join("mix/example-c.toml");
+    let mix = load_mix(&mix_path).expect("example-c mix");
+    let mix_hash = format!(
+        "sha256:{:x}",
+        Sha256::digest(&fs::read(&mix_path).expect("mix bytes"))
+    );
+    let topo_hash = format!("sha256:{:x}", Sha256::digest(b"n64"));
+    const D_J: i64 = 3_000_000_000;
+
+    for policy in [Policy::Joint, Policy::Naive] {
+        let (graph, residual, occ) = example_c();
+        let tag = policy.as_str();
+        let out = out_dir(&format!("example-c-{tag}"));
+        let _ = fs::remove_dir_all(&out);
+        let report = run_sim(RunConfig {
+            graph,
+            mix: mix.clone(),
+            policy,
+            seed: 1,
+            out: out.clone(),
+            strict: false,
+            mix_hash: mix_hash.clone(),
+            topo_hash: topo_hash.clone(),
+            fails: Vec::new(),
+            occupancy: occ,
+            residual: Some(residual),
+        })
+        .expect("example-c run");
+        report
+            .write_json(&out.join("report.json"))
+            .expect("write report");
+        let r = read_report(&out);
+        let lines = admit_lines(&out);
+        let j1 = lines.iter().find(|v| v["job_id"] == 1).expect("J1 admit");
+        let j2 = lines.iter().find(|v| v["job_id"] == 2).expect("J2 admit");
+        match policy {
+            Policy::Joint => {
+                assert_eq!(r["counts"]["admits"], 1, "example-c joint admits");
+                assert_eq!(r["counts"]["rejects"], 1, "example-c joint rejects");
+                assert_eq!(r["rejects_by_code"]["ZeroLeftover"], 1);
+                assert_eq!(j1["decision"], "admit");
+                assert_eq!(j1["chosen"]["kind"], "RailRotate{1}");
+                assert_eq!(j2["decision"], "reject");
+                assert_eq!(j2["reject"], "ZeroLeftover");
+                let t = job_row(&r, 1)["t_pred_ps"].as_i64().expect("t_pred");
+                assert!(t <= D_J, "J1 T_pred={t} must meet 3000 µs");
+            }
+            Policy::Naive => {
+                assert_eq!(r["counts"]["admits"], 2, "example-c naive admits");
+                assert_eq!(r["counts"]["rejects"], 0, "example-c naive rejects");
+                assert_eq!(j1["decision"], "admit");
+                assert_eq!(j2["decision"], "admit");
+                for id in [1u32, 2] {
+                    let t = job_row(&r, id)["t_pred_ps"].as_i64().expect("t_pred");
+                    assert!(t > D_J, "naive J{id} T_pred={t} must SLO-miss 3000 µs");
+                }
+                assert_eq!(r["counts"]["slo_misses"], 2, "naive both SLO-miss");
+            }
+        }
+        let golden = fixtures().join(format!("golden/example-c/{tag}.report.json"));
+        copy_golden_if_missing(&out.join("report.json"), &golden);
+        let g: Value = serde_json::from_str(&fs::read_to_string(&golden).expect("golden"))
+            .expect("golden json");
+        assert_eq!(g["counts"]["admits"], r["counts"]["admits"]);
+        assert_eq!(g["counts"]["rejects"], r["counts"]["rejects"]);
+        let _ = fs::remove_dir_all(&out);
+    }
 }

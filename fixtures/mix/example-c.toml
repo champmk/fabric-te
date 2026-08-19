@@ -1,0 +1,29 @@
+# fixtures/mix/example-c.toml — §8.6 J1/J2 (occupancy + inject_cir applied in code)
+seed = 1
+horizon_s = 2.0
+
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 8
+dp = 8
+tp = 1
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 10
+compute_s = 0.010
+deadline_s = 0.003
+
+[[jobs]]
+id = 2
+arrive_s = 0.0
+gpu_count = 8
+dp = 8
+tp = 1
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 10
+compute_s = 0.010
+deadline_s = 0.003

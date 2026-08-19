@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use clap::{error::ErrorKind, Parser, Subcommand};
 use fabric_ctrl::{
-    parse_delta, parse_fail_spec, run_plan, run_sim, FailSpec, PlanConfig, RunConfig,
+    parse_delta, parse_fail_spec, run_plan, run_sim, FailSpec, Occupancy, PlanConfig, RunConfig,
 };
 use fabric_model::{check_isolated, load_mix};
 use fabric_report::write_html;
@@ -294,6 +294,8 @@ fn cmd_run(
         mix_hash,
         topo_hash,
         fails,
+        occupancy: Occupancy::new(),
+        residual: None,
     }) {
         Ok(r) => r,
         Err(e) => {

@@ -1,0 +1,65 @@
+{
+  "spec_version": "0.1",
+  "seed": 1,
+  "policy": "joint",
+  "topo": {
+    "gpus": 512,
+    "N": 64,
+    "L": 16,
+    "S": 8,
+    "E_host": 512,
+    "E_ls": 512,
+    "B_bisect_gbps": 102400
+  },
+  "mix_hash": "sha256:337759532b2b53fff940f31c46137dfe46591a24534fd9cf9128f8061ebdf77f",
+  "topo_hash": "sha256:2616f2173c5b9cb5292a16766e8f28ed552f6193ee97964513e673c4dffc0213",
+  "horizon_ps": 2000000000000,
+  "counts": {
+    "arrivals": 2,
+    "admits": 1,
+    "rejects": 1,
+    "kills": 0,
+    "completes": 1,
+    "slo_misses": 0
+  },
+  "rejects_by_code": {
+    "CrossRailUnsupported": 0,
+    "DeadElementOnPath": 0,
+    "EpochPrepareFailed": 0,
+    "FragmentedGpus": 0,
+    "MixDoesNotFit": 0,
+    "NoFreeGpus": 0,
+    "OddRingDegenerate": 0,
+    "ResidualExhausted": 0,
+    "SloMiss": 0,
+    "ZeroLeftover": 1
+  },
+  "metrics": {
+    "hotspot_us": 397829,
+    "hotspot_threshold_ppm": 800000,
+    "completions_by_deadline": 1,
+    "tail_collective_us_p99": 2486,
+    "last_flow_collective_us_max": 2486,
+    "slo_miss_us": 0,
+    "disrupted_step_us": 0,
+    "mean_link_util_ppm": 92
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 2486431836,
+      "reject": null
+    },
+    {
+      "job_id": 2,
+      "decision": "reject",
+      "steps_done": 0,
+      "t_pred_ps": 0,
+      "reject": "ZeroLeftover"
+    }
+  ],
+  "fails": [],
+  "invariants_ok": true
+}

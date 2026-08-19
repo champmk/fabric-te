@@ -1,10 +1,10 @@
 # fabric-te status
 
-Last updated: 2026-08-18  
+Last updated: 2026-08-19  
 Repo name: **fabric-te**  
-Phase: PR10 implemented. **Next: PR11.**
+Phase: PR11 implemented. **Next: PR12.**
 
-**Next:** PR11 — remaining goldens.
+**Next:** PR12 — invariants + parity.
 
 ## How to use this file
 
@@ -12,11 +12,9 @@ Phase: PR10 implemented. **Next: PR11.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR11)
+## Read for next (PR12)
 
-`docs/DESIGN.md` §18.4 remaining goldens.
-
-`moe-burst`, `row-late`, `example-c`.
+`docs/DESIGN.md` §18.2–§18.3.
 
 ---
 
@@ -53,7 +51,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 8 | Joint evaluate + Example C | 5, 7 | §13.3–§13.5, §8.6 | `joint_reject_zero_leftover`, `joint_admit_cheapest_feasible`, `naive_may_overadmit`, `simultaneous_fifo_admit`, `scratch_not_used_by_jobs` | **done** |
 | 9 | Failure + 2PC | 8 | §14 | `fail_spine_reroute_or_kill`, `fail_leaf_kills_single_homed`, `fail_dead_zero_bytes`, `epoch_2pc_arc_swap`; golden `spine-down` | **done** |
 | 10 | Planner + deltas | 8, 9 | §15 | `planner_same_engine`, `planner_delay_row_b` | **done** |
-| 11 | Remaining goldens | 9, 10 | §18.4 | `moe-burst`, `row-late`, `example-c` | not started |
+| 11 | Remaining goldens | 9, 10 | §18.4 | `moe-burst`, `row-late`, `example-c` | **done** |
 | 12 | Invariants + parity | 11 | §18.2–§18.3 | I1–I10 on every golden; `cli_exit_codes`; `incast_last_flow_metric`; `parity_log_equals_counters` | not started |
 | 13 | As-built + README freeze | 12 | §30 PR13 | stranger path only | not started |
 
@@ -103,3 +101,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR8: joint evaluate + Example C. `run --policy joint`. Next = PR9. |
 | 2026-08-18 | PR9: fail handlers, 2PC epoch, spine-down golden. Next = PR10. |
 | 2026-08-18 | PR10: plan CLI, deltas, restore scan. Next = PR11. |
+| 2026-08-19 | PR11: moe-burst, row-late, example-c goldens. Next = PR12. |

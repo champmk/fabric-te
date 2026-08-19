@@ -1,0 +1,171 @@
+{
+  "spec_version": "0.1",
+  "seed": 1,
+  "policy": "joint",
+  "topo": {
+    "gpus": 2048,
+    "N": 256,
+    "L": 64,
+    "S": 32,
+    "E_host": 2048,
+    "E_ls": 2048,
+    "B_bisect_gbps": 409600
+  },
+  "mix_hash": "sha256:d1034f1809ad7925e273407a33f77aa8af04f78f533cf2f68928512ff00adc9b",
+  "topo_hash": "sha256:c8fb7507b2fa82b28235f43654520ba94dd36fab1f4ab3f8b1cab8d8ed37dc05",
+  "horizon_ps": 3000000000000,
+  "counts": {
+    "arrivals": 10,
+    "admits": 10,
+    "rejects": 0,
+    "kills": 0,
+    "completes": 10,
+    "slo_misses": 0
+  },
+  "rejects_by_code": {
+    "CrossRailUnsupported": 0,
+    "DeadElementOnPath": 0,
+    "EpochPrepareFailed": 0,
+    "FragmentedGpus": 0,
+    "MixDoesNotFit": 0,
+    "NoFreeGpus": 0,
+    "OddRingDegenerate": 0,
+    "ResidualExhausted": 0,
+    "SloMiss": 0,
+    "ZeroLeftover": 0
+  },
+  "metrics": {
+    "hotspot_us": 4527418,
+    "hotspot_threshold_ppm": 800000,
+    "completions_by_deadline": 10,
+    "tail_collective_us_p99": 1414,
+    "last_flow_collective_us_max": 1414,
+    "slo_miss_us": 0,
+    "disrupted_step_us": 0,
+    "mean_link_util_ppm": 175
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 2,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 3,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 4,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 5,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 6,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 7,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 8,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 9,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    },
+    {
+      "job_id": 10,
+      "decision": "admit",
+      "steps_done": 10,
+      "t_pred_ps": 1414818190,
+      "reject": null
+    }
+  ],
+  "fails": [],
+  "invariants_ok": true,
+  "plan": {
+    "deltas": [
+      "delay-row=B"
+    ],
+    "nodes_removed": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31
+    ],
+    "gpus_removed": 128,
+    "S_before": 32,
+    "S_after": 32,
+    "jobs_admitted": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "jobs_rejected": [],
+    "new_hotspots": [],
+    "restore": {
+      "extra_spines": 0,
+      "rows_needed": [
+        "B"
+      ]
+    },
+    "vs_baseline": {
+      "admits": 10,
+      "rejects": 0
+    }
+  }
+}

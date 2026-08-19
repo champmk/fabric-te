@@ -1,0 +1,19 @@
+# fixtures/mix/row-late.toml — §18.4 row-late
+seed = 1
+horizon_s = 3.0
+
+[[pattern]]
+name = "row-late"
+every_s = 0.1
+count = 10
+start_s = 0.1
+start_id = 1
+gpu_count = 16
+dp = 2
+tp = 8
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 10
+compute_s = 0.010
+deadline_s = 0.005

@@ -11,6 +11,7 @@ use fabric_types::{GpuAvail, Policy, ProcessExit, UnavailReason};
 
 use crate::epoch::FailSpec;
 use crate::kernel::{run_sim_snapshot, RunConfig, RunError, RunSnapshot};
+use crate::table::Occupancy;
 
 static SCRATCH_SEQ: AtomicU64 = AtomicU64::new(0);
 
@@ -240,6 +241,8 @@ fn run_once(cfg: &PlanConfig, graph: Graph, out: PathBuf) -> Result<RunSnapshot,
         mix_hash: cfg.mix_hash.clone(),
         topo_hash: cfg.topo_hash.clone(),
         fails: cfg.fails.clone(),
+        occupancy: Occupancy::new(),
+        residual: None,
     })
     .map_err(PlanError::Run)
 }
@@ -404,6 +407,8 @@ mod tests {
             mix_hash: "t".into(),
             topo_hash: "t".into(),
             fails: Vec::new(),
+            occupancy: Occupancy::new(),
+            residual: None,
         })
         .expect("run");
         let plan = run_plan(cfg(graph, mix, plan_out.clone(), vec![], vec![])).expect("plan");

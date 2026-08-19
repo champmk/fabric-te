@@ -1,0 +1,55 @@
+# fixtures/mix/moe-burst.toml — §18.4 moe-burst
+seed = 1
+horizon_s = 1.0
+
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 32
+dp = 4
+tp = 8
+pp = 1
+collective = "pairwise_alltoall"
+payload_bytes = 67108864
+step_count = 20
+compute_s = 0.010
+deadline_s = 0.002
+
+[[jobs]]
+id = 2
+arrive_s = 0.001
+gpu_count = 32
+dp = 4
+tp = 8
+pp = 1
+collective = "pairwise_alltoall"
+payload_bytes = 67108864
+step_count = 20
+compute_s = 0.010
+deadline_s = 0.002
+
+[[jobs]]
+id = 3
+arrive_s = 0.002
+gpu_count = 32
+dp = 4
+tp = 8
+pp = 1
+collective = "pairwise_alltoall"
+payload_bytes = 67108864
+step_count = 20
+compute_s = 0.010
+deadline_s = 0.002
+
+[[jobs]]
+id = 4
+arrive_s = 0.003
+gpu_count = 32
+dp = 4
+tp = 8
+pp = 1
+collective = "pairwise_alltoall"
+payload_bytes = 67108864
+step_count = 20
+compute_s = 0.010
+deadline_s = 0.002

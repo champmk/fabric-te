@@ -798,6 +798,8 @@ mod tests {
                 t_ps: 15_000_000_000,
                 kind: FailKind::Spine(SpineId(3)),
             }],
+            occupancy: crate::Occupancy::new(),
+            residual: None,
         })
         .expect("run");
         let _ = std::fs::remove_dir_all(&out);

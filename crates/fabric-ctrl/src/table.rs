@@ -60,6 +60,7 @@ pub struct JobRec {
     pub chosen_idx: Option<usize>,
 }
 
+#[derive(Clone, Debug, Default)]
 pub struct Occupancy {
     pub by_gpu: BTreeMap<GpuId, JobId>,
 }
@@ -76,12 +77,6 @@ impl Occupancy {
             .gpu(g)
             .is_some_and(|gpu| gpu.avail == GpuAvail::Present)
             && !self.by_gpu.contains_key(&g)
-    }
-}
-
-impl Default for Occupancy {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

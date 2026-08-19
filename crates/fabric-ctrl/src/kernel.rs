@@ -20,7 +20,7 @@ use serde_json::json;
 use crate::epoch::{prepare, EpochPlan, FailSpec};
 use crate::joint::joint_admit;
 use crate::naive::naive_admit;
-use crate::table::{BindingNote, Flow as PlannedFlow, JobTable};
+use crate::table::{BindingNote, Flow as PlannedFlow, JobTable, Occupancy};
 
 pub struct RunConfig {
     pub graph: Graph,
@@ -32,6 +32,10 @@ pub struct RunConfig {
     pub mix_hash: String,
     pub topo_hash: String,
     pub fails: Vec<FailSpec>,
+    /// Pre-seeded occupancy (Example C). Empty = all Present GPUs free.
+    pub occupancy: Occupancy,
+    /// Pre-seeded residual. None = `Residual::new(graph)`.
+    pub residual: Option<Residual>,
 }
 
 /// Post-run snapshot for PR9/PR10 tests (not serialized).
@@ -143,6 +147,8 @@ struct Kernel {
     fail_log: Vec<serde_json::Value>,
     event_trace: Vec<(String, u32)>,
     hot_links: Vec<bool>,
+    /// Fixture CIR (Example C `inject_cir`) restored on every replay.
+    base_cir: Vec<u64>,
 }
 
 pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
@@ -162,15 +168,19 @@ pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
     for j in &cfg.mix.jobs {
         specs.insert(j.id, j.clone());
     }
+    let residual = cfg.residual.unwrap_or_else(|| Residual::new(&cfg.graph));
+    let base_cir = residual.cir.clone();
+    let mut table = JobTable::new();
+    table.occ = cfg.occupancy;
     let graph = Arc::new(cfg.graph);
     let mut k = Kernel {
-        residual: Residual::new(&graph),
+        residual,
         q_bytes: vec![0; nlink],
         overflowed: vec![false; nlink],
         bytes_epoch: vec![0; nlink],
         rate_dt: vec![0; nlink],
         graph,
-        table: JobTable::new(),
+        table,
         fel: Fel::new(),
         traces,
         specs,
@@ -203,6 +213,7 @@ pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
         fail_log: Vec::new(),
         event_trace: Vec::new(),
         hot_links: vec![false; nlink],
+        base_cir,
     };
     for j in &cfg.mix.jobs {
         k.fel.push(
@@ -892,6 +903,11 @@ impl Kernel {
 
     fn replay_cir(&mut self) {
         self.residual.clear_cir(&self.graph);
+        for (i, &rho) in self.base_cir.iter().enumerate() {
+            if rho > 0 {
+                self.residual.inject_cir(&self.graph, LinkId(i as u32), rho);
+            }
+        }
         let mut ids: Vec<JobId> = self
             .table
             .by_id
