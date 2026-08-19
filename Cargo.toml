@@ -5,6 +5,7 @@ members = [
     "crates/fabric-sim",
     "crates/fabric-topo",
     "crates/fabric-model",
+    "crates/fabric-ctrl",
     "crates/fabric-te",
 ]
 
@@ -22,3 +23,4 @@ fabric-types = { path = "crates/fabric-types" }
 fabric-sim = { path = "crates/fabric-sim" }
 fabric-topo = { path = "crates/fabric-topo" }
 fabric-model = { path = "crates/fabric-model" }
+fabric-ctrl = { path = "crates/fabric-ctrl" }

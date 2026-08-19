@@ -1,0 +1,12 @@
+//! Naive admit, occupancy, and job table. Transcribed from docs/DESIGN.md §9.4, §12.
+
+#![forbid(unsafe_code)]
+#![allow(non_snake_case)]
+
+mod naive;
+mod table;
+
+pub use naive::{first_fit, gpu_scan_order, naive_admit, pump_until_collective_start};
+pub use table::{
+    communicators, rank_map, Binding, Communicator, Flow, JobRec, JobTable, Occupancy,
+};

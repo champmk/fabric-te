@@ -1,0 +1,13 @@
+[package]
+name = "fabric-ctrl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Naive admit, occupancy, and job table for fabric-te"
+
+[dependencies]
+fabric-types.workspace = true
+fabric-topo.workspace = true
+fabric-sim.workspace = true
+fabric-model.workspace = true

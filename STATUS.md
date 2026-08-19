@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: PR4 implemented. **Next: PR5.**
+Phase: PR5 implemented. **Next: PR6.**
 
-**Next:** PR5 — naive admit + water-fill.
+**Next:** PR6 — traces, report, `run`, naive golden.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: PR4 implemented. **Next: PR5.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR5)
+## Read for next (PR6)
 
-`docs/DESIGN.md` §11.4 water-fill, §12 naive admit, §9.4 Job/Occupancy, §30 PR5.
+`docs/DESIGN.md` §9.7–§9.9, §16 run, §30 PR6.
 
-Do **not** implement joint evaluate, traces, or `run`.
+Do **not** implement joint evaluate, 2PC, planner, or explain.
 
 ---
 
@@ -47,7 +47,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 2 | Topology generator + `topo` | 1 | §7, §16.2 | `topo_n32_closed_form`, `topo_n64_closed_form`, `topo_rail_not_tor`, `topo_one_nic_per_gpu`, `topo_bisection_n32_leaf_not_spine`, `topo_ls_full_mesh_n32` | **done** |
 | 3 | Collective math + mix loader | 1 | §8 | `model_ring_8x64mib`, `model_ring_16x64mib`, `model_a2a_8x64mib`, `model_ring_8x64mib_47_5`, `model_beta_is_20ps_not_20ns`, `model_us_is_ps_div_1e6`, `model_units_bytes_not_bits`, `model_phase_sum_eq_closed`, `model_p1_zero`, `odd_ring_last_hop`, isolated SLO → exit 4 | **done** |
 | 4 | Residual + k-shortest / ECMP | 2, 3 | §11.1–§11.3 | `joint_kshortest_k8`, `joint_cost_inverse_residual`, `naive_ecmp_tiebreak_lowest_linkid` | **done** |
-| 5 | Naive admit + water-fill | 4 | §11.4, §12 | `naive_scan_order_node_then_rank`, `naive_admit_gpu_count_only`, `compute_before_first_collective`, `joint_waterfill_maxmin` | not started |
+| 5 | Naive admit + water-fill | 4 | §11.4, §12 | `naive_scan_order_node_then_rank`, `naive_admit_gpu_count_only`, `compute_before_first_collective`, `joint_waterfill_maxmin` | **done** |
 | 6 | Traces, report, `run`, naive golden | 5 | §9.7–§9.9, §16 | `replay_seed_deterministic`; golden `empty-cluster`; `default-mix-512` naive report | not started |
 | 7 | Bindings + `explain` skeleton | 6 | §13.1–§13.2, §13.6 | `joint_k16_bound` | not started |
 | 8 | Joint evaluate + Example C | 5, 7 | §13.3–§13.5, §8.6 | `joint_reject_zero_leftover`, `joint_admit_cheapest_feasible`, `naive_may_overadmit`, `simultaneous_fifo_admit`, `scratch_not_used_by_jobs` | not started |
@@ -97,3 +97,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR3 rebased onto master: `fabric-model` + mix loader. Next = PR4. |
 | 2026-08-18 | Session loop locked: DAG-parallel write / series land; else one PR; CR then SR; draft + brief; stop for user review. |
 | 2026-08-18 | PR4: Residual + Clos k-shortest (zip, k=8). Joint skips r_avail=0. Next = PR5. |
+| 2026-08-18 | PR5 water-fill + naive admit. Next = PR6. |
