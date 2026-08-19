@@ -30,6 +30,17 @@ pub struct Flow {
     pub bytes: u64,
 }
 
+/// One generate_bindings candidate, for admit.jsonl / --explain. §13.6
+#[derive(Clone, Debug)]
+pub struct BindingNote {
+    pub kind: BindingKind,
+    pub gpu_ids: Vec<GpuId>,
+    pub cost: f64,
+    pub t_pred_ps: i128,
+    pub code: Option<RejectCode>,
+    pub phase0_links: Vec<LinkId>,
+}
+
 #[derive(Clone, Debug)]
 pub struct JobRec {
     pub spec: JobSpec,
@@ -44,6 +55,9 @@ pub struct JobRec {
     pub step_index: u32,
     pub steps_done: u32,
     pub reject: Option<RejectCode>,
+    /// Joint: every K≤16 candidate. Naive: empty (write_admit synthesizes one).
+    pub notes: Vec<BindingNote>,
+    pub chosen_idx: Option<usize>,
 }
 
 pub struct Occupancy {

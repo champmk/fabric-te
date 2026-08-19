@@ -58,6 +58,8 @@ pub fn naive_admit(
                 steps_done: 0,
                 reject: Some(RejectCode::NoFreeGpus),
                 planned: Vec::new(),
+                notes: Vec::new(),
+                chosen_idx: None,
             },
         );
         return Err(RejectCode::NoFreeGpus);
@@ -173,6 +175,8 @@ pub fn naive_admit(
             step_index: 0,
             steps_done: 0,
             reject: None,
+            notes: Vec::new(),
+            chosen_idx: Some(0),
         },
     );
     fel.push(

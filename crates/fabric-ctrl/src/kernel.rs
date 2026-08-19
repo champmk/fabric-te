@@ -15,8 +15,9 @@ use fabric_types::{
 };
 use serde_json::json;
 
+use crate::joint::joint_admit;
 use crate::naive::naive_admit;
-use crate::table::{Flow as PlannedFlow, JobTable};
+use crate::table::{BindingNote, Flow as PlannedFlow, JobTable};
 
 pub struct RunConfig {
     pub graph: Graph,
@@ -123,9 +124,6 @@ struct Kernel {
 }
 
 pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
-    if cfg.policy != Policy::Naive {
-        return Err(RunError::Usage("joint not implemented".into()));
-    }
     let g_tot = cfg.graph.gpus.len() as u32;
     let snap_period_ps = if g_tot > 2048 {
         10_000_000_000 // 10 ms
@@ -364,13 +362,23 @@ impl Kernel {
             .iter()
             .filter(|g| self.table.occ.is_free(g.id, &self.graph))
             .count();
-        match naive_admit(
-            &spec,
-            &self.graph,
-            &mut self.residual,
-            &mut self.table,
-            &mut self.fel,
-        ) {
+        let admit = match self.policy {
+            Policy::Naive => naive_admit(
+                &spec,
+                &self.graph,
+                &mut self.residual,
+                &mut self.table,
+                &mut self.fel,
+            ),
+            Policy::Joint => joint_admit(
+                &spec,
+                &self.graph,
+                &mut self.residual,
+                &mut self.table,
+                &mut self.fel,
+            ),
+        };
+        match admit {
             Ok(()) => {
                 self.counts.admits += 1;
                 self.job_slo_ok.insert(job, true);
@@ -694,7 +702,10 @@ impl Kernel {
     }
 
     fn fill_job_cir(&mut self, id: JobId) {
-        let leftover = self.residual.physical_leftover(&self.graph);
+        let leftover = match self.policy {
+            Policy::Joint => self.residual.r_avail.clone(),
+            Policy::Naive => self.residual.physical_leftover(&self.graph),
+        };
         let Some(rec) = self.table.by_id.get_mut(&id) else {
             return;
         };
@@ -846,6 +857,18 @@ impl Kernel {
                 }
             }
         }
+        if self.policy == Policy::Joint {
+            for (i, link) in self.graph.links.iter().enumerate() {
+                let cir = self.residual.cir.get(i).copied().unwrap_or(0);
+                let cap95 = Residual::admissible(&self.graph, link.id);
+                if cir > cap95 {
+                    self.invariants_ok = false;
+                    if self.strict {
+                        return Err(RunError::Inv("I1".into()));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
@@ -859,11 +882,7 @@ impl Kernel {
         let rec = self.table.by_id.get(&spec.id);
         let admit_seq = rec.and_then(|r| r.admit_seq).map(|s| s.0);
         let t_pred = rec.map(|r| r.t_pred_ps).unwrap_or(0);
-        let t_pred_json = if t_pred == i128::MAX {
-            serde_json::Value::Null
-        } else {
-            json!(t_pred as i64)
-        };
+        let t_pred_json = ps_json(t_pred);
         let gpu_ids: Vec<u32> = rec
             .and_then(|r| r.binding.as_ref())
             .map(|b| b.map.iter().map(|(_, g)| g.0).collect())
@@ -883,15 +902,10 @@ impl Kernel {
             })
             .unwrap_or(0);
         let would_miss = t_pred > spec.deadline_ps;
-        let v = json!({
-            "job_id": spec.id.0,
-            "admit_seq": admit_seq,
-            "policy": "naive",
-            "decision": if ok { "admit" } else { "reject" },
-            "reject": reject.map(|c| c.as_str()),
-            "free_at_arrive": free,
-            "bindings_evaluated": 1,
-            "per_binding": [{
+        let notes: &[BindingNote] = rec.map(|r| r.notes.as_slice()).unwrap_or(&[]);
+        let bindings_evaluated = if notes.is_empty() { 1 } else { notes.len() };
+        let per_binding = if notes.is_empty() {
+            json!([{
                 "kind": "NaiveFirstFit",
                 "gpu_ids": gpu_ids,
                 "cost": 0,
@@ -899,21 +913,108 @@ impl Kernel {
                 "D_j_ps": spec.deadline_ps as i64,
                 "code": reject.map(|c| c.as_str()),
                 "phase0_links": []
-            }],
+            }])
+        } else {
+            json!(notes
+                .iter()
+                .map(|n| {
+                    json!({
+                        "kind": binding_kind_label(n.kind),
+                        "gpu_ids": n.gpu_ids.iter().map(|g| g.0).collect::<Vec<_>>(),
+                        "cost": n.cost,
+                        "T_pred_ps": ps_json(n.t_pred_ps),
+                        "D_j_ps": spec.deadline_ps as i64,
+                        "code": n.code.map(|c| c.as_str()),
+                        "phase0_links": n.phase0_links.iter().map(|e| e.0).collect::<Vec<_>>(),
+                    })
+                })
+                .collect::<Vec<_>>())
+        };
+        let chosen_kind = rec
+            .and_then(|r| r.binding.as_ref())
+            .map(|b| binding_kind_label(b.kind))
+            .unwrap_or_else(|| "NaiveFirstFit".into());
+        let chosen_idx = rec.and_then(|r| r.chosen_idx).unwrap_or(0);
+        let per_link = rec
+            .map(|r| {
+                r.cir
+                    .iter()
+                    .map(|(&e, &rho)| {
+                        let link = self.graph.link(e);
+                        json!({
+                            "link_id": e.0,
+                            "c_Bps": link.map(|l| l.capacity_Bps).unwrap_or(0),
+                            "cir_Bps": self.residual.cir.get(e.0 as usize).copied().unwrap_or(0),
+                            "r_avail_Bps": self.residual.r_avail(e),
+                            "cost_e": self.residual.cost(&self.graph, e),
+                            "rho_job": rho,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let waterfill = rec
+            .map(|r| {
+                r.planned
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| json!({"ord": i, "rate_Bps": f.rate_Bps}))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let naive_gpus = notes
+            .iter()
+            .find(|n| {
+                matches!(
+                    n.kind,
+                    fabric_types::BindingKind::FirstFitShift { skip_free_gpus: 0 }
+                )
+            })
+            .map(|n| n.gpu_ids.iter().map(|g| g.0).collect::<Vec<_>>())
+            .unwrap_or_else(|| gpu_ids.clone());
+        let naive_t = notes
+            .iter()
+            .find(|n| {
+                matches!(
+                    n.kind,
+                    fabric_types::BindingKind::FirstFitShift { skip_free_gpus: 0 }
+                )
+            })
+            .map(|n| n.t_pred_ps)
+            .unwrap_or(t_pred);
+        let naive_miss = notes
+            .iter()
+            .find(|n| {
+                matches!(
+                    n.kind,
+                    fabric_types::BindingKind::FirstFitShift { skip_free_gpus: 0 }
+                )
+            })
+            .map(|n| n.code.is_some() || n.t_pred_ps > spec.deadline_ps)
+            .unwrap_or(would_miss);
+        let v = json!({
+            "job_id": spec.id.0,
+            "admit_seq": admit_seq,
+            "policy": self.policy.as_str(),
+            "decision": if ok { "admit" } else { "reject" },
+            "reject": reject.map(|c| c.as_str()),
+            "free_at_arrive": free,
+            "bindings_evaluated": bindings_evaluated,
+            "per_binding": per_binding,
             "chosen": if ok {
-                json!({"index": 0, "kind": "NaiveFirstFit", "map": map})
+                json!({"index": chosen_idx, "kind": chosen_kind, "map": map})
             } else {
                 serde_json::Value::Null
             },
-            "per_link": [],
-            "waterfill": [],
+            "per_link": per_link,
+            "waterfill": waterfill,
             "B_eff_Bps": b_eff,
             "T_pred_ps": t_pred_json,
             "D_j_ps": spec.deadline_ps as i64,
             "naive_compare": {
-                "gpu_ids": gpu_ids,
-                "T_pred_ps": t_pred_json,
-                "would_miss_slo": would_miss
+                "gpu_ids": naive_gpus,
+                "T_pred_ps": ps_json(naive_t),
+                "would_miss_slo": naive_miss
             }
         });
         self.traces.admit_line(&v)?;
@@ -1032,6 +1133,26 @@ impl Kernel {
         };
         self.traces.finish()?;
         Ok(report)
+    }
+}
+
+fn ps_json(t: i128) -> serde_json::Value {
+    if t == i128::MAX {
+        serde_json::Value::Null
+    } else {
+        json!(t as i64)
+    }
+}
+
+fn binding_kind_label(k: fabric_types::BindingKind) -> String {
+    match k {
+        fabric_types::BindingKind::NaiveFirstFit => "NaiveFirstFit".into(),
+        fabric_types::BindingKind::FirstFitShift { skip_free_gpus } => {
+            format!("FirstFitShift{{{skip_free_gpus}}}")
+        }
+        fabric_types::BindingKind::RailRotate { start_rail } => {
+            format!("RailRotate{{{start_rail}}}")
+        }
     }
 }
 

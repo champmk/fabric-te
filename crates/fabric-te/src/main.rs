@@ -1,4 +1,4 @@
-//! clap. `topo`, `run --policy naive`, and `explain` are live (§16.1). `plan` stays a stub.
+//! clap. `topo`, `run --policy naive|joint`, and `explain` are live (§16.1). `plan` stays a stub.
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
@@ -208,10 +208,7 @@ fn cmd_run(
     };
     let policy = match policy_s.as_str() {
         "naive" => Policy::Naive,
-        "joint" => {
-            let _ = writeln!(io::stderr(), "error[E_USAGE]: joint not implemented");
-            return ProcessExit::Usage as i32;
-        }
+        "joint" => Policy::Joint,
         _ => {
             let _ = writeln!(
                 io::stderr(),

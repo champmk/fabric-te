@@ -20,7 +20,7 @@ fn out_dir(tag: &str) -> PathBuf {
         .join(format!("out-pr6-{tag}-{}", std::process::id()))
 }
 
-fn run_naive(topo: &str, mix: &Path, out: &Path, seed: u64) -> std::process::Output {
+fn run_policy(topo: &str, mix: &Path, out: &Path, seed: u64, policy: &str) -> std::process::Output {
     let _ = fs::remove_dir_all(out);
     bin()
         .args([
@@ -30,7 +30,7 @@ fn run_naive(topo: &str, mix: &Path, out: &Path, seed: u64) -> std::process::Out
             "--mix",
             mix.to_str().expect("mix utf8"),
             "--policy",
-            "naive",
+            policy,
             "--seed",
             &seed.to_string(),
             "--out",
@@ -38,6 +38,10 @@ fn run_naive(topo: &str, mix: &Path, out: &Path, seed: u64) -> std::process::Out
         ])
         .output()
         .expect("fabric-te run")
+}
+
+fn run_naive(topo: &str, mix: &Path, out: &Path, seed: u64) -> std::process::Output {
+    run_policy(topo, mix, out, seed, "naive")
 }
 
 fn read_report(out: &Path) -> Value {
@@ -89,6 +93,19 @@ fn default_mix_512_naive() {
         assert_eq!(g["counts"]["admits"], 21);
         assert_eq!(g["counts"]["rejects"], 0);
     }
+    let _ = fs::remove_dir_all(&out);
+}
+
+#[test]
+fn default_mix_512_joint() {
+    let mix = fixtures().join("mix/default-512.toml");
+    let out = out_dir("default-joint");
+    let got = run_policy("n64", &mix, &out, 1, "joint");
+    let err = String::from_utf8_lossy(&got.stderr);
+    assert_eq!(got.status.code(), Some(0), "stderr={err}");
+    let r = read_report(&out);
+    assert_eq!(r["counts"]["admits"], 21, "admits");
+    assert_eq!(r["counts"]["rejects"], 0, "rejects");
     let _ = fs::remove_dir_all(&out);
 }
 
