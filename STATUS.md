@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: PR5 implemented. **Next: PR6.**
+Phase: PR6 implemented. **Next: PR7.**
 
-**Next:** PR6 — traces, report, `run`, naive golden.
+**Next:** PR7 — bindings + `explain` skeleton.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: PR5 implemented. **Next: PR6.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR6)
+## Read for next (PR7)
 
-`docs/DESIGN.md` §9.7–§9.9, §16 run, §30 PR6.
+`docs/DESIGN.md` §13.1–§13.2, §13.6, §30 PR7.
 
-Do **not** implement joint evaluate, 2PC, planner, or explain.
+Do **not** implement joint evaluate, 2PC, planner, or I1–I10 CI.
 
 ---
 
@@ -28,7 +28,7 @@ Do **not** implement joint evaluate, 2PC, planner, or explain.
 | Persistent session files (`AGENTS.md`, this file) | done |
 | Git repo exists | done |
 | `topo --gpus 256 --dump` matches Example A | done |
-| `run --policy naive` + `run --policy joint` on default-mix | not started |
+| `run --policy naive` + `run --policy joint` on default-mix | naive done; joint PR8 |
 | `explain --job` reads `admit.jsonl` | not started |
 | `run --fail spine=3@…` : dead element 0 bytes | not started |
 | `plan --delta delay-row=B` same engine | not started |
@@ -48,7 +48,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 3 | Collective math + mix loader | 1 | §8 | `model_ring_8x64mib`, `model_ring_16x64mib`, `model_a2a_8x64mib`, `model_ring_8x64mib_47_5`, `model_beta_is_20ps_not_20ns`, `model_us_is_ps_div_1e6`, `model_units_bytes_not_bits`, `model_phase_sum_eq_closed`, `model_p1_zero`, `odd_ring_last_hop`, isolated SLO → exit 4 | **done** |
 | 4 | Residual + k-shortest / ECMP | 2, 3 | §11.1–§11.3 | `joint_kshortest_k8`, `joint_cost_inverse_residual`, `naive_ecmp_tiebreak_lowest_linkid` | **done** |
 | 5 | Naive admit + water-fill | 4 | §11.4, §12 | `naive_scan_order_node_then_rank`, `naive_admit_gpu_count_only`, `compute_before_first_collective`, `joint_waterfill_maxmin` | **done** |
-| 6 | Traces, report, `run`, naive golden | 5 | §9.7–§9.9, §16 | `replay_seed_deterministic`; golden `empty-cluster`; `default-mix-512` naive report | not started |
+| 6 | Traces, report, `run`, naive golden | 5 | §9.7–§9.9, §16 | `replay_seed_deterministic`; golden `empty-cluster`; `default-mix-512` naive report | **done** |
 | 7 | Bindings + `explain` skeleton | 6 | §13.1–§13.2, §13.6 | `joint_k16_bound` | not started |
 | 8 | Joint evaluate + Example C | 5, 7 | §13.3–§13.5, §8.6 | `joint_reject_zero_leftover`, `joint_admit_cheapest_feasible`, `naive_may_overadmit`, `simultaneous_fifo_admit`, `scratch_not_used_by_jobs` | not started |
 | 9 | Failure + 2PC | 8 | §14 | `fail_spine_reroute_or_kill`, `fail_leaf_kills_single_homed`, `fail_dead_zero_bytes`, `epoch_2pc_arc_swap`; golden `spine-down` | not started |
@@ -98,3 +98,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | Session loop locked: DAG-parallel write / series land; else one PR; CR then SR; draft + brief; stop for user review. |
 | 2026-08-18 | PR4: Residual + Clos k-shortest (zip, k=8). Joint skips r_avail=0. Next = PR5. |
 | 2026-08-18 | PR5 water-fill + naive admit. Next = PR6. |
+| 2026-08-18 | PR6: run loop, parquet traces, naive goldens. Next = PR7. |

@@ -1,0 +1,198 @@
+{
+  "spec_version": "0.1",
+  "seed": 1,
+  "policy": "naive",
+  "topo": {
+    "gpus": 512,
+    "N": 64,
+    "L": 16,
+    "S": 8,
+    "E_host": 512,
+    "E_ls": 512,
+    "B_bisect_gbps": 102400
+  },
+  "mix_hash": "sha256:698ff690e7c68a46cba8f00ecb06846612e421187638559cdc35e6ceda3c7d13",
+  "topo_hash": "sha256:2616f2173c5b9cb5292a16766e8f28ed552f6193ee97964513e673c4dffc0213",
+  "horizon_ps": 60000000000000,
+  "counts": {
+    "arrivals": 21,
+    "admits": 21,
+    "rejects": 0,
+    "kills": 0,
+    "completes": 21,
+    "slo_misses": 0
+  },
+  "rejects_by_code": {
+    "CrossRailUnsupported": 0,
+    "DeadElementOnPath": 0,
+    "EpochPrepareFailed": 0,
+    "FragmentedGpus": 0,
+    "MixDoesNotFit": 0,
+    "NoFreeGpus": 0,
+    "OddRingDegenerate": 0,
+    "ResidualExhausted": 0,
+    "SloMiss": 0,
+    "ZeroLeftover": 0
+  },
+  "metrics": {
+    "hotspot_us": 47315040,
+    "hotspot_threshold_ppm": 800000,
+    "completions_by_deadline": 21,
+    "tail_collective_us_p99": 1344,
+    "last_flow_collective_us_max": 1344,
+    "slo_miss_us": 0,
+    "disrupted_step_us": 0,
+    "mean_link_util_ppm": 385
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "decision": "admit",
+      "steps_done": 100,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 100,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 101,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 102,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 103,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 104,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 105,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 106,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 107,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 108,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 109,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 110,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 111,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 112,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 113,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 114,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 115,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 116,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 117,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 118,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    },
+    {
+      "job_id": 119,
+      "decision": "admit",
+      "steps_done": 50,
+      "t_pred_ps": 1344177280,
+      "reject": null
+    }
+  ],
+  "fails": [],
+  "invariants_ok": true
+}

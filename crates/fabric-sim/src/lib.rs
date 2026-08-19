@@ -20,6 +20,15 @@ pub fn s_to_ps(x: f64) -> i128 {
     (x * 1e12).round_ties_even() as i128
 }
 
+/// Phase duration \(d_\phi = \alpha + \mathrm{chunk}/B_\mathrm{eff}\). α = 1e-6 s. B_eff=0 → i128::MAX.
+pub fn phase_duration_ps(chunk_bytes: u64, b_eff_bps: u64) -> i128 {
+    if b_eff_bps == 0 {
+        i128::MAX
+    } else {
+        s_to_ps(1e-6 + (chunk_bytes as f64) / (b_eff_bps as f64))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

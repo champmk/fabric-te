@@ -56,3 +56,77 @@ fn stub_run_exits_1() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("E_USAGE"), "{err}");
 }
+
+#[test]
+fn isolated_miss_via_mix_loader_exits_4() {
+    use std::fs;
+    let dir = std::env::current_dir()
+        .expect("cwd")
+        .join(format!("out-pr6-iso-{}", std::process::id()));
+    let _ = fs::create_dir_all(&dir);
+    let mix = dir.join("bad.toml");
+    fs::write(
+        &mix,
+        r#"
+horizon_s = 1
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 8
+dp = 8
+tp = 1
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+deadline_s = 0.000001
+"#,
+    )
+    .expect("write mix");
+    let out = dir.join("out");
+    let got = bin()
+        .args([
+            "run",
+            "--topo",
+            "n32",
+            "--mix",
+            mix.to_str().unwrap(),
+            "--policy",
+            "naive",
+            "--out",
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .expect("run");
+    let err = String::from_utf8_lossy(&got.stderr);
+    assert_eq!(got.status.code(), Some(4), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn bad_fail_spec_exits_2() {
+    let mix =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/mix/empty.toml");
+    let out = std::env::current_dir()
+        .expect("cwd")
+        .join(format!("out-pr6-fail-{}", std::process::id()));
+    let got = bin()
+        .args([
+            "run",
+            "--topo",
+            "n32",
+            "--mix",
+            mix.to_str().unwrap(),
+            "--policy",
+            "naive",
+            "--fail",
+            "nope",
+            "--out",
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .expect("run");
+    let err = String::from_utf8_lossy(&got.stderr);
+    assert_eq!(got.status.code(), Some(2), "{err}");
+    assert!(err.contains("E_FAILSPEC"), "{err}");
+    let _ = std::fs::remove_dir_all(&out);
+}

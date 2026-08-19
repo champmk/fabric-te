@@ -1,0 +1,50 @@
+{
+  "spec_version": "0.1",
+  "seed": 1,
+  "policy": "naive",
+  "topo": {
+    "gpus": 256,
+    "N": 32,
+    "L": 8,
+    "S": 4,
+    "E_host": 256,
+    "E_ls": 256,
+    "B_bisect_gbps": 51200
+  },
+  "mix_hash": "sha256:638ee9fa947c9efbcf7618d9e765fd7786acfaa1efa6ede50e7893303467575a",
+  "topo_hash": "sha256:a2135d1357aa034a7fe62d5b3c98bdfef9b6f24d6a486b58b61b428aa9018875",
+  "horizon_ps": 1000000000000,
+  "counts": {
+    "arrivals": 0,
+    "admits": 0,
+    "rejects": 0,
+    "kills": 0,
+    "completes": 0,
+    "slo_misses": 0
+  },
+  "rejects_by_code": {
+    "CrossRailUnsupported": 0,
+    "DeadElementOnPath": 0,
+    "EpochPrepareFailed": 0,
+    "FragmentedGpus": 0,
+    "MixDoesNotFit": 0,
+    "NoFreeGpus": 0,
+    "OddRingDegenerate": 0,
+    "ResidualExhausted": 0,
+    "SloMiss": 0,
+    "ZeroLeftover": 0
+  },
+  "metrics": {
+    "hotspot_us": 0,
+    "hotspot_threshold_ppm": 800000,
+    "completions_by_deadline": 0,
+    "tail_collective_us_p99": 0,
+    "last_flow_collective_us_max": 0,
+    "slo_miss_us": 0,
+    "disrupted_step_us": 0,
+    "mean_link_util_ppm": 0
+  },
+  "jobs": [],
+  "fails": [],
+  "invariants_ok": true
+}

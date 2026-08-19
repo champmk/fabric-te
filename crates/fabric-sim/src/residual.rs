@@ -62,6 +62,46 @@ impl Residual {
         self.r_avail.get(e.0 as usize).copied().unwrap_or(0)
     }
 
+    /// Leftover `c_e − cir` (scratch open). Failed link → 0. §12.4
+    pub fn physical_leftover(&self, graph: &Graph) -> Vec<u64> {
+        graph
+            .links
+            .iter()
+            .map(|link| {
+                let cir = self.cir.get(link.id.0 as usize).copied().unwrap_or(0);
+                if link.failed {
+                    0
+                } else {
+                    link.capacity_Bps.saturating_sub(cir)
+                }
+            })
+            .collect()
+    }
+
+    /// Instant leftover `c_e` (no CIR). Failed → 0.
+    pub fn capacity_leftover(&self, graph: &Graph) -> Vec<u64> {
+        graph
+            .links
+            .iter()
+            .map(|link| if link.failed { 0 } else { link.capacity_Bps })
+            .collect()
+    }
+
+    pub fn release_cir(&mut self, graph: &Graph, e: LinkId, rho: u64) {
+        let i = e.0 as usize;
+        if i >= self.cir.len() {
+            return;
+        }
+        self.cir[i] = self.cir[i].saturating_sub(rho);
+        let adm = Self::admissible(graph, e);
+        self.r_avail[i] = adm.saturating_sub(self.cir[i]);
+    }
+
+    pub fn clear_cir(&mut self, graph: &Graph) {
+        self.cir.fill(0);
+        self.recompute(graph);
+    }
+
     /// Cost_e = 1 / (r_avail + ε), ε = 1e-12 * c_e.
     pub fn cost(&self, graph: &Graph, e: LinkId) -> f64 {
         let c = graph.link(e).map(|l| l.capacity_Bps).unwrap_or(0);

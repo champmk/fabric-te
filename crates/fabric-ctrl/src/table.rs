@@ -10,14 +10,18 @@ use fabric_types::{
     NodeId, Rank, RejectCode,
 };
 
+#[derive(Clone, Debug)]
 pub struct Binding {
     pub kind: BindingKind,
     pub map: Vec<(Rank, GpuId)>,
 }
 
+#[derive(Clone, Debug)]
 pub struct Flow {
     pub id: FlowId,
     pub job: JobId,
+    /// Communicator.index. Not in §9.4 Flow; needed to group phases at CollectiveStart.
+    pub comm: u32,
     pub phase: u32,
     pub src: GpuId,
     pub dst: GpuId,
@@ -26,6 +30,7 @@ pub struct Flow {
     pub bytes: u64,
 }
 
+#[derive(Clone, Debug)]
 pub struct JobRec {
     pub spec: JobSpec,
     pub state: JobState,
@@ -33,6 +38,8 @@ pub struct JobRec {
     pub binding: Option<Binding>,
     pub paths: Vec<Path>,
     pub cir: BTreeMap<LinkId, u64>,
+    /// Admit-time fabric flows with CIR rates. Updated on RateRecompute replay.
+    pub planned: Vec<Flow>,
     pub t_pred_ps: i128,
     pub step_index: u32,
     pub steps_done: u32,

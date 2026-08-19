@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use fabric_model::JobSpec;
 use fabric_sim::{
-    k_shortest, s_to_ps, water_fill, Event, EventKind, EventPayload, Fel, Path, PathMode, Residual,
+    k_shortest, water_fill, Event, EventKind, EventPayload, Fel, Path, PathMode, Residual,
 };
 use fabric_topo::Graph;
 use fabric_types::{AdmitSeq, BindingKind, GpuId, JobState, LinkId, RejectCode};
@@ -23,28 +23,8 @@ pub fn first_fit(occ: &Occupancy, graph: &Graph, gpu_count: u32) -> Vec<GpuId> {
         .collect()
 }
 
-/// Leftover is `c_e − cir` (scratch open). Failed link → 0. §12.4
-fn physical_leftover(graph: &Graph, residual: &Residual) -> Vec<u64> {
-    graph
-        .links
-        .iter()
-        .map(|link| {
-            let cir = residual.cir.get(link.id.0 as usize).copied().unwrap_or(0);
-            if link.failed {
-                0
-            } else {
-                link.capacity_Bps.saturating_sub(cir)
-            }
-        })
-        .collect()
-}
-
 fn t_phase_ps(chunk_bytes: u64, b_eff: u64) -> i128 {
-    if b_eff == 0 {
-        i128::MAX
-    } else {
-        s_to_ps(1e-6 + (chunk_bytes as f64) / (b_eff as f64))
-    }
+    fabric_sim::phase_duration_ps(chunk_bytes, b_eff)
 }
 
 fn same_node(graph: &Graph, src: GpuId, dst: GpuId) -> bool {
@@ -77,6 +57,7 @@ pub fn naive_admit(
                 step_index: 0,
                 steps_done: 0,
                 reject: Some(RejectCode::NoFreeGpus),
+                planned: Vec::new(),
             },
         );
         return Err(RejectCode::NoFreeGpus);
@@ -87,13 +68,13 @@ pub fn naive_admit(
         map: rank_map(&picked, job, graph),
     };
     let comms = communicators(&binding, job);
-    let leftover = physical_leftover(graph, residual);
+    let leftover = residual.physical_leftover(graph);
 
     let mut paths = Vec::new();
     let mut cir: BTreeMap<LinkId, u64> = BTreeMap::new();
     let mut t_pred: i128 = 0;
     let mut wf_fail = false;
-    let mut next_flow = 0u64;
+    let mut planned: Vec<Flow> = Vec::new();
 
     for comm in &comms {
         let mut t_comm: i128 = 0;
@@ -111,8 +92,9 @@ pub fn naive_admit(
                     .unwrap_or_else(Path::empty);
                 paths.push(path.clone());
                 flows.push(Flow {
-                    id: fabric_types::FlowId(next_flow),
+                    id: fabric_types::FlowId(0),
                     job: job.id,
+                    comm: comm.index,
                     phase: phi,
                     src,
                     dst,
@@ -120,7 +102,6 @@ pub fn naive_admit(
                     rate_Bps: 0,
                     bytes: comm.chunk_bytes,
                 });
-                next_flow += 1;
             }
             if flows.is_empty() {
                 continue;
@@ -135,7 +116,8 @@ pub fn naive_admit(
                         t_comm = t_comm.saturating_add(t_phase_ps(comm.chunk_bytes, b_eff));
                     }
                     let mut load: BTreeMap<LinkId, u64> = BTreeMap::new();
-                    for (f, &rate) in flows.iter().zip(rates.iter()) {
+                    for (f, &rate) in flows.iter_mut().zip(rates.iter()) {
+                        f.rate_Bps = rate;
                         for &e in &f.path.links {
                             let slot = load.entry(e).or_insert(0);
                             *slot = slot.saturating_add(rate);
@@ -153,6 +135,7 @@ pub fn naive_admit(
                     wf_fail = true;
                 }
             }
+            planned.extend(flows);
         }
         if comm_has_fabric && t_comm > t_pred {
             t_pred = t_comm;
@@ -185,6 +168,7 @@ pub fn naive_admit(
             binding: Some(binding),
             paths,
             cir,
+            planned,
             t_pred_ps: t_pred,
             step_index: 0,
             steps_done: 0,

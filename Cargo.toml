@@ -6,6 +6,8 @@ members = [
     "crates/fabric-topo",
     "crates/fabric-model",
     "crates/fabric-ctrl",
+    "crates/fabric-trace",
+    "crates/fabric-report",
     "crates/fabric-te",
 ]
 
@@ -18,9 +20,18 @@ version = "0.1.0"
 [workspace.dependencies]
 clap = { version = "=4.5.23", features = ["derive"] }
 serde = { version = "=1.0.210", features = ["derive"] }
+serde_json = "=1.0.128"
 toml = "=0.5.11"
+sha2 = "=0.10.8"
+arrow = { version = "=51.0.0", default-features = false }
+parquet = { version = "=51.0.0", default-features = false, features = ["arrow"] }
+hashbrown = { version = "=0.14.5", default-features = false }
+half = { version = "=2.4.1", default-features = false }
+chrono = { version = "=0.4.38", default-features = false, features = ["clock"] }
 fabric-types = { path = "crates/fabric-types" }
 fabric-sim = { path = "crates/fabric-sim" }
 fabric-topo = { path = "crates/fabric-topo" }
 fabric-model = { path = "crates/fabric-model" }
 fabric-ctrl = { path = "crates/fabric-ctrl" }
+fabric-trace = { path = "crates/fabric-trace" }
+fabric-report = { path = "crates/fabric-report" }

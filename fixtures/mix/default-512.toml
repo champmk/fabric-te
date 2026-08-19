@@ -1,0 +1,32 @@
+# fixtures/mix/default-512.toml
+seed = 1
+horizon_s = 60.0
+
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 16
+dp = 2
+tp = 8
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 100
+compute_s = 0.010
+deadline_s = 0.005
+
+[[pattern]]
+name = "steady-dp"
+every_s = 1.0
+count = 20
+start_s = 0.5
+start_id = 100
+gpu_count = 16
+dp = 2
+tp = 8
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 50
+compute_s = 0.010
+deadline_s = 0.005

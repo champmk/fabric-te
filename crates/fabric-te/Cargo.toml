@@ -14,3 +14,11 @@ path = "src/main.rs"
 clap.workspace = true
 fabric-types.workspace = true
 fabric-topo.workspace = true
+fabric-model.workspace = true
+fabric-ctrl.workspace = true
+fabric-report.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+sha2.workspace = true

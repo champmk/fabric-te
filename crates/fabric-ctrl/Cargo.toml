@@ -11,3 +11,8 @@ fabric-types.workspace = true
 fabric-topo.workspace = true
 fabric-sim.workspace = true
 fabric-model.workspace = true
+fabric-trace.workspace = true
+fabric-report.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+

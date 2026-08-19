@@ -1,0 +1,17 @@
+[package]
+name = "fabric-trace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Parquet traces and admit.jsonl writer for fabric-te"
+
+[dependencies]
+arrow.workspace = true
+chrono.workspace = true
+fabric-types.workspace = true
+half.workspace = true
+hashbrown.workspace = true
+parquet.workspace = true
+serde.workspace = true
+serde_json.workspace = true

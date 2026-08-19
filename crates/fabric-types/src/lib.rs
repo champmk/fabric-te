@@ -161,11 +161,82 @@ impl EventKind {
             EventKind::LinkFail | EventKind::LeafFail | EventKind::RailFail | EventKind::SpineFail
         )
     }
-}
 
-impl EventKind {
     /// Exhaustive count lock: 14 variants.
     pub const COUNT: usize = 14;
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            EventKind::JobArrive => "JobArrive",
+            EventKind::StepBoundary => "StepBoundary",
+            EventKind::CollectiveStart => "CollectiveStart",
+            EventKind::CollectiveEnd => "CollectiveEnd",
+            EventKind::FlowArrive => "FlowArrive",
+            EventKind::FlowDepart => "FlowDepart",
+            EventKind::RateRecompute => "RateRecompute",
+            EventKind::LinkFail => "LinkFail",
+            EventKind::LeafFail => "LeafFail",
+            EventKind::RailFail => "RailFail",
+            EventKind::SpineFail => "SpineFail",
+            EventKind::DrainComplete => "DrainComplete",
+            EventKind::EpochAdvance => "EpochAdvance",
+            EventKind::HorizonCut => "HorizonCut",
+        }
+    }
+}
+
+impl RejectCode {
+    pub const ALL: [RejectCode; 10] = [
+        RejectCode::NoFreeGpus,
+        RejectCode::FragmentedGpus,
+        RejectCode::ResidualExhausted,
+        RejectCode::SloMiss,
+        RejectCode::CrossRailUnsupported,
+        RejectCode::DeadElementOnPath,
+        RejectCode::EpochPrepareFailed,
+        RejectCode::MixDoesNotFit,
+        RejectCode::OddRingDegenerate,
+        RejectCode::ZeroLeftover,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            RejectCode::NoFreeGpus => "NoFreeGpus",
+            RejectCode::FragmentedGpus => "FragmentedGpus",
+            RejectCode::ResidualExhausted => "ResidualExhausted",
+            RejectCode::SloMiss => "SloMiss",
+            RejectCode::CrossRailUnsupported => "CrossRailUnsupported",
+            RejectCode::DeadElementOnPath => "DeadElementOnPath",
+            RejectCode::EpochPrepareFailed => "EpochPrepareFailed",
+            RejectCode::MixDoesNotFit => "MixDoesNotFit",
+            RejectCode::OddRingDegenerate => "OddRingDegenerate",
+            RejectCode::ZeroLeftover => "ZeroLeftover",
+        }
+    }
+}
+
+impl Policy {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Policy::Naive => "naive",
+            Policy::Joint => "joint",
+        }
+    }
+}
+
+impl BindingKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BindingKind::NaiveFirstFit => "NaiveFirstFit",
+            BindingKind::FirstFitShift { .. } => "FirstFitShift",
+            BindingKind::RailRotate { .. } => "RailRotate",
+        }
+    }
+}
+
+/// Integer µs: floor(ps / 1_000_000). Never /1000.
+pub fn ps_to_us(ps: i128) -> i128 {
+    ps / 1_000_000
 }
 
 #[cfg(test)]
