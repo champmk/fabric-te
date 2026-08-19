@@ -149,6 +149,7 @@ pub fn naive_admit(
                     }
                 }
                 Err(_) => {
+                    // Still admit. Keep ρ from earlier Ok phases; these flows get rate 0. §12.4
                     wf_fail = true;
                 }
             }
@@ -160,7 +161,6 @@ pub fn naive_admit(
 
     if wf_fail {
         t_pred = i128::MAX;
-        cir.clear();
     }
 
     for &(_, g) in &binding.map {
@@ -259,15 +259,19 @@ mod tests {
         let mut residual = Residual::new(&graph);
         let mut table = JobTable::new();
         let mut fel = Fel::new();
+        // Occupy n0 r0..r6 so first-fit takes n0r7 + n1r0 (cross-node fabric).
+        for r in 0..7 {
+            table.occ.by_gpu.insert(GpuId(r), JobId(99));
+        }
         // Isolated T at 47.5 GB/s for ring p=2 is ≫ 1 ps.
         let job = tiny_job(1, 0);
         assert!(naive_admit(&job, &graph, &mut residual, &mut table, &mut fel).is_ok());
         let rec = table.by_id.get(&JobId(1)).expect("rec");
         assert_eq!(rec.state, JobState::Computing);
         assert!(rec.reject.is_none());
-        assert_eq!(table.occ.by_gpu.len(), 2);
-        assert_eq!(table.occ.by_gpu.get(&GpuId(0)), Some(&JobId(1)));
-        assert_eq!(table.occ.by_gpu.get(&GpuId(1)), Some(&JobId(1)));
+        assert!(rec.t_pred_ps > job.deadline_ps);
+        assert_eq!(table.occ.by_gpu.get(&GpuId(7)), Some(&JobId(1)));
+        assert_eq!(table.occ.by_gpu.get(&GpuId(8)), Some(&JobId(1)));
     }
 
     #[test]
