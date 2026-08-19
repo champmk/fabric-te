@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: PR9 implemented. **Next: PR10.**
+Phase: PR10 implemented. **Next: PR11.**
 
-**Next:** PR10 — planner + deltas.
+**Next:** PR11 — remaining goldens.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: PR9 implemented. **Next: PR10.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR10)
+## Read for next (PR11)
 
-`docs/DESIGN.md` §15, §30 PR10.
+`docs/DESIGN.md` §18.4 remaining goldens.
 
-Planner is `run` with a modified Graph and no wall-clock. Always run no-delta baseline. `--fail` composes.
+`moe-burst`, `row-late`, `example-c`.
 
 ---
 
@@ -31,7 +31,7 @@ Planner is `run` with a modified Graph and no wall-clock. Always run no-delta ba
 | `run --policy naive` + `run --policy joint` on default-mix | done (joint hotspot worse; `NOTE.md`) |
 | `explain --job` reads `admit.jsonl` | skeleton done |
 | `run --fail spine=3@…` : dead element 0 bytes | done |
-| `plan --delta delay-row=B` same engine | not started |
+| `plan --delta delay-row=B` same engine | done |
 | I1–I10 + `parity_log_equals_counters` on all goldens | not started |
 | Stranger path: clone, `cargo test --workspace` | not started |
 
@@ -52,7 +52,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 7 | Bindings + `explain` skeleton | 6 | §13.1–§13.2, §13.6 | `joint_k16_bound` | **done** |
 | 8 | Joint evaluate + Example C | 5, 7 | §13.3–§13.5, §8.6 | `joint_reject_zero_leftover`, `joint_admit_cheapest_feasible`, `naive_may_overadmit`, `simultaneous_fifo_admit`, `scratch_not_used_by_jobs` | **done** |
 | 9 | Failure + 2PC | 8 | §14 | `fail_spine_reroute_or_kill`, `fail_leaf_kills_single_homed`, `fail_dead_zero_bytes`, `epoch_2pc_arc_swap`; golden `spine-down` | **done** |
-| 10 | Planner + deltas | 8, 9 | §15 | `planner_same_engine`, `planner_delay_row_b` | not started |
+| 10 | Planner + deltas | 8, 9 | §15 | `planner_same_engine`, `planner_delay_row_b` | **done** |
 | 11 | Remaining goldens | 9, 10 | §18.4 | `moe-burst`, `row-late`, `example-c` | not started |
 | 12 | Invariants + parity | 11 | §18.2–§18.3 | I1–I10 on every golden; `cli_exit_codes`; `incast_last_flow_metric`; `parity_log_equals_counters` | not started |
 | 13 | As-built + README freeze | 12 | §30 PR13 | stranger path only | not started |
@@ -102,3 +102,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR7: `generate_bindings` K≤16 + `explain` skeleton. Next = PR8. |
 | 2026-08-18 | PR8: joint evaluate + Example C. `run --policy joint`. Next = PR9. |
 | 2026-08-18 | PR9: fail handlers, 2PC epoch, spine-down golden. Next = PR10. |
+| 2026-08-18 | PR10: plan CLI, deltas, restore scan. Next = PR11. |

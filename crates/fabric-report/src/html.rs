@@ -122,12 +122,76 @@ pub fn write_html(report: &Report, path: &Path) -> Result<(), io::Error> {
     table(&mut s, "Failures", &["fail"], &fail_rows);
 
     s.push_str("<h1>Planner</h1>\n");
-    table(
-        &mut s,
-        "Planner",
-        &["note"],
-        &[vec!["No planner delta in this run.".into()]],
-    );
+    if let Some(p) = &report.plan {
+        let extra = p
+            .restore
+            .extra_spines
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| "null".into());
+        table(
+            &mut s,
+            "Planner",
+            &["key", "value"],
+            &[
+                vec!["deltas".into(), p.deltas.join(", ")],
+                vec![
+                    "nodes_removed".into(),
+                    p.nodes_removed
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ],
+                vec!["gpus_removed".into(), p.gpus_removed.to_string()],
+                vec!["S_before".into(), p.S_before.to_string()],
+                vec!["S_after".into(), p.S_after.to_string()],
+                vec![
+                    "jobs_admitted".into(),
+                    p.jobs_admitted
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ],
+                vec![
+                    "jobs_rejected".into(),
+                    p.jobs_rejected
+                        .iter()
+                        .map(|j| format!("{}:{}", j.id, j.code))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ],
+                vec![
+                    "new_hotspots".into(),
+                    p.new_hotspots
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ],
+                vec!["restore.extra_spines".into(), extra],
+                vec![
+                    "restore.rows_needed".into(),
+                    p.restore.rows_needed.join(", "),
+                ],
+                vec![
+                    "vs_baseline.admits".into(),
+                    p.vs_baseline.admits.to_string(),
+                ],
+                vec![
+                    "vs_baseline.rejects".into(),
+                    p.vs_baseline.rejects.to_string(),
+                ],
+            ],
+        );
+    } else {
+        table(
+            &mut s,
+            "Planner",
+            &["note"],
+            &[vec!["No planner delta in this run.".into()]],
+        );
+    }
 
     s.push_str("</body></html>\n");
     fs::write(path, s)

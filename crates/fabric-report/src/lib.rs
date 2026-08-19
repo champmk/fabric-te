@@ -30,6 +30,43 @@ pub struct Report {
     pub jobs: Vec<JobRow>,
     pub fails: Vec<serde_json::Value>,
     pub invariants_ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanReport>,
+}
+
+/// `report.json` `"plan"` object. §15.2
+#[derive(Clone, Debug, Serialize)]
+pub struct PlanReport {
+    pub deltas: Vec<String>,
+    pub nodes_removed: Vec<u32>,
+    pub gpus_removed: u32,
+    pub S_before: u32,
+    pub S_after: u32,
+    pub jobs_admitted: Vec<u32>,
+    pub jobs_rejected: Vec<PlanReject>,
+    pub new_hotspots: Vec<u32>,
+    pub restore: PlanRestore,
+    pub vs_baseline: PlanBaseline,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PlanReject {
+    pub id: u32,
+    pub code: String,
+    pub T_pred_ps: i128,
+    pub D_j_ps: i128,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PlanRestore {
+    pub extra_spines: Option<u32>,
+    pub rows_needed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PlanBaseline {
+    pub admits: u64,
+    pub rejects: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -101,6 +138,7 @@ impl Report {
             jobs: Vec::new(),
             fails: Vec::new(),
             invariants_ok: true,
+            plan: None,
         }
     }
 

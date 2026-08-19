@@ -8,6 +8,7 @@ use std::fmt;
 
 use fabric_types::{
     Endpoint, EpochId, GpuAvail, GpuId, LeafId, LinkId, NicId, NodeId, RailId, SpineId,
+    UnavailReason,
 };
 use serde::Deserialize;
 
@@ -21,6 +22,9 @@ const DEFAULT_PORT_SPEED_GBPS: u32 = 400;
 const DEFAULT_SCRATCH: f64 = 0.05;
 const DEFAULT_FILL: f64 = 1.0;
 const DEFAULT_BUFFER_BYTES: u64 = 33_554_432;
+
+/// Locked row width. Row \(i\) = nodes `[16i, 16i+16)`. Row B = `[16, 32)`. §15.1
+pub const ROW_SIZE: u32 = 16;
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -328,43 +332,7 @@ impl Graph {
         }
 
         // LS: §7.4. Neighbors in SpineId order; par copies Leaf→Spine + Spine→Leaf.
-        let full_bipartite = s <= u && l <= p;
-        for leaf in 0..l {
-            let pars = if full_bipartite {
-                (0..s)
-                    .map(|spine| {
-                        let par = u / s + if spine < (u % s) { 1 } else { 0 };
-                        (spine, par)
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                let mut spines_hit: Vec<u32> = (0..u)
-                    .map(|i| {
-                        let raw = (leaf as u64) * (u as u64) + (i as u64);
-                        (raw % (s as u64)) as u32
-                    })
-                    .collect();
-                spines_hit.sort_unstable();
-                spines_hit.into_iter().map(|spine| (spine, 1u32)).collect()
-            };
-            for (spine, par) in pars {
-                if par == 0 {
-                    continue;
-                }
-                for _ in 0..par {
-                    emit(
-                        Endpoint::Leaf(LeafId(leaf)),
-                        Endpoint::Spine(SpineId(spine)),
-                        &mut links,
-                    );
-                    emit(
-                        Endpoint::Spine(SpineId(spine)),
-                        Endpoint::Leaf(LeafId(leaf)),
-                        &mut links,
-                    );
-                }
-            }
-        }
+        append_ls(&mut links, &mut next, l, s, u, p, capacity_Bps, scratch);
 
         Ok(Graph {
             epoch: EpochId(0),
@@ -464,6 +432,201 @@ impl Graph {
         }
         out.sort_by_key(|s| s.0);
         out
+    }
+
+    /// Delay-row: nodes `[16i, 16i+16)` `present=false`, GPUs `Unavailable(AbsentRow)`,
+    /// host links failed / capacity 0. Leaves and spines stay. §15.1
+    pub fn mark_row_absent(&mut self, row: u32) {
+        let start = row.saturating_mul(ROW_SIZE);
+        let end = start.saturating_add(ROW_SIZE);
+        for node in &mut self.nodes {
+            if node.id.0 >= start && node.id.0 < end {
+                node.present = false;
+            }
+        }
+        let mut nics = Vec::new();
+        for gpu in &mut self.gpus {
+            if gpu.node.0 >= start && gpu.node.0 < end {
+                gpu.avail = GpuAvail::Unavailable(UnavailReason::AbsentRow);
+                nics.push(gpu.nic);
+            }
+        }
+        for link in &mut self.links {
+            if host_nic(link).is_some_and(|n| nics.contains(&n)) {
+                link.failed = true;
+                link.capacity_Bps = 0;
+                link.bytes_this_epoch = 0;
+            }
+        }
+    }
+
+    /// Inverse of `mark_row_absent` (restore scan). §15.2
+    pub fn restore_row(&mut self, row: u32) {
+        let start = row.saturating_mul(ROW_SIZE);
+        let end = start.saturating_add(ROW_SIZE);
+        let cap = self.port_capacity_bps();
+        for node in &mut self.nodes {
+            if node.id.0 >= start && node.id.0 < end {
+                node.present = true;
+            }
+        }
+        let mut nics = Vec::new();
+        for gpu in &mut self.gpus {
+            if gpu.node.0 >= start && gpu.node.0 < end {
+                gpu.avail = GpuAvail::Present;
+                nics.push(gpu.nic);
+            }
+        }
+        for link in &mut self.links {
+            if host_nic(link).is_some_and(|n| nics.contains(&n)) {
+                link.failed = false;
+                link.capacity_Bps = cap;
+                link.bytes_this_epoch = 0;
+            }
+        }
+    }
+
+    /// Keep `SpineId` 0..s_keep-1 and rewire LS with §7.4. Host side unchanged.
+    pub fn rebuild_spines(&mut self, s_keep: u32) {
+        self.spines.truncate(s_keep as usize);
+        while (self.spines.len() as u32) < s_keep {
+            let i = self.spines.len() as u32;
+            self.spines.push(Spine {
+                id: SpineId(i),
+                failed: false,
+            });
+        }
+        self.rewire_ls();
+    }
+
+    /// Recompute U and S from §7.2, then rewire LS. Preserves delay-row host state.
+    pub fn rebuild_oversub(&mut self, oversub: u32) -> Result<(), TopoError> {
+        if !OVERSUB_OK.contains(&oversub) {
+            return Err(TopoError::Illegal(format!(
+                "oversub must be one of {:?}, got {}",
+                OVERSUB_OK, oversub
+            )));
+        }
+        if self.params.down % oversub != 0 {
+            return Err(TopoError::Illegal(format!(
+                "down {} not divisible by oversub {}",
+                self.params.down, oversub
+            )));
+        }
+        let u = self.params.down / oversub;
+        let l = self.leaves.len() as u32;
+        let p = self.params.leaf_radix;
+        let s = (l as u64).saturating_mul(u as u64).div_ceil(p as u64) as u32;
+        self.params.up = u;
+        self.rebuild_spines(s);
+        Ok(())
+    }
+
+    fn rewire_ls(&mut self) {
+        self.links.retain(is_host_link);
+        let mut next = self
+            .links
+            .iter()
+            .map(|l| l.id.0)
+            .max()
+            .map(|m| m + 1)
+            .unwrap_or(0);
+        let cap = self.port_capacity_bps();
+        append_ls(
+            &mut self.links,
+            &mut next,
+            self.leaves.len() as u32,
+            self.spines.len() as u32,
+            self.params.up,
+            self.params.leaf_radix,
+            cap,
+            self.params.scratch,
+        );
+    }
+
+    fn port_capacity_bps(&self) -> u64 {
+        (self.params.port_speed_gbps as u64) * 1_000_000_000 / 8
+    }
+}
+
+fn is_host_link(link: &Link) -> bool {
+    matches!(
+        (link.src, link.dst),
+        (Endpoint::Nic(_), Endpoint::Leaf(_)) | (Endpoint::Leaf(_), Endpoint::Nic(_))
+    )
+}
+
+fn host_nic(link: &Link) -> Option<NicId> {
+    match (link.src, link.dst) {
+        (Endpoint::Nic(n), Endpoint::Leaf(_)) | (Endpoint::Leaf(_), Endpoint::Nic(n)) => Some(n),
+        _ => None,
+    }
+}
+
+/// §7.4. `s==0` emits nothing (restore scan / spines=0).
+fn append_ls(
+    links: &mut Vec<Link>,
+    next: &mut u32,
+    l: u32,
+    s: u32,
+    u: u32,
+    p: u32,
+    capacity_Bps: u64,
+    scratch: f64,
+) {
+    if s == 0 {
+        return;
+    }
+    let emit = |src: Endpoint, dst: Endpoint, links: &mut Vec<Link>, next: &mut u32| {
+        links.push(Link {
+            id: LinkId(*next),
+            src,
+            dst,
+            capacity_Bps,
+            scratch,
+            failed: false,
+            bytes_this_epoch: 0,
+        });
+        *next += 1;
+    };
+    let full_bipartite = s <= u && l <= p;
+    for leaf in 0..l {
+        let pars = if full_bipartite {
+            (0..s)
+                .map(|spine| {
+                    let par = u / s + if spine < (u % s) { 1 } else { 0 };
+                    (spine, par)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            let mut spines_hit: Vec<u32> = (0..u)
+                .map(|i| {
+                    let raw = (leaf as u64) * (u as u64) + (i as u64);
+                    (raw % (s as u64)) as u32
+                })
+                .collect();
+            spines_hit.sort_unstable();
+            spines_hit.into_iter().map(|spine| (spine, 1u32)).collect()
+        };
+        for (spine, par) in pars {
+            if par == 0 {
+                continue;
+            }
+            for _ in 0..par {
+                emit(
+                    Endpoint::Leaf(LeafId(leaf)),
+                    Endpoint::Spine(SpineId(spine)),
+                    links,
+                    next,
+                );
+                emit(
+                    Endpoint::Spine(SpineId(spine)),
+                    Endpoint::Leaf(LeafId(leaf)),
+                    links,
+                    next,
+                );
+            }
+        }
     }
 }
 

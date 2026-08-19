@@ -1,11 +1,13 @@
-//! clap. `topo`, `run --policy naive|joint`, and `explain` are live (§16.1). `plan` stays a stub.
+//! clap. `topo`, `run`, `plan`, and `explain` are live (§16.1).
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 
 use clap::{error::ErrorKind, Parser, Subcommand};
-use fabric_ctrl::{parse_fail_spec, run_sim, FailSpec, RunConfig};
+use fabric_ctrl::{
+    parse_delta, parse_fail_spec, run_plan, run_sim, FailSpec, PlanConfig, RunConfig,
+};
 use fabric_model::{check_isolated, load_mix};
 use fabric_report::write_html;
 use fabric_topo::{default_rails, format_endpoint, Graph};
@@ -61,8 +63,21 @@ enum Command {
         #[arg(long)]
         strict: bool,
     },
-    /// What-if plan (PR10).
-    Plan,
+    /// What-if plan: same engine + capacity delta. §15, §16.1
+    Plan {
+        #[arg(long)]
+        topo: Option<String>,
+        #[arg(long)]
+        mix: Option<PathBuf>,
+        #[arg(long)]
+        delta: Vec<String>,
+        #[arg(long)]
+        fail: Vec<String>,
+        #[arg(long, default_value = "joint")]
+        policy: String,
+        #[arg(long, default_value = "./out")]
+        out: PathBuf,
+    },
     /// Explain an admit/reject from admit.jsonl (§13.6, §16.1).
     Explain {
         #[arg(long)]
@@ -112,10 +127,14 @@ fn dispatch(cli: Cli) -> i32 {
             out,
             strict,
         } => cmd_run(topo, mix, policy, fail, seed, out, strict),
-        Command::Plan => {
-            let _ = writeln!(io::stderr(), "error[E_USAGE]: subcommand not implemented");
-            ProcessExit::Usage as i32
-        }
+        Command::Plan {
+            topo,
+            mix,
+            delta,
+            fail,
+            policy,
+            out,
+        } => cmd_plan(topo, mix, delta, fail, policy, out),
         Command::Explain {
             run,
             job,
@@ -293,6 +312,130 @@ fn cmd_run(
     if let Err(code) = report.print_stdout() {
         let _ = writeln!(io::stderr(), "error[E_IO]: stdout write failed");
         return code as i32;
+    }
+    ProcessExit::Ok as i32
+}
+
+fn cmd_plan(
+    topo: Option<String>,
+    mix: Option<PathBuf>,
+    delta: Vec<String>,
+    fail: Vec<String>,
+    policy_s: String,
+    out: PathBuf,
+) -> i32 {
+    let Some(topo) = topo else {
+        let _ = writeln!(io::stderr(), "error[E_USAGE]: missing --topo");
+        return ProcessExit::Usage as i32;
+    };
+    let Some(mix_path) = mix else {
+        let _ = writeln!(io::stderr(), "error[E_USAGE]: missing --mix");
+        return ProcessExit::Usage as i32;
+    };
+    let policy = match policy_s.as_str() {
+        "naive" => Policy::Naive,
+        "joint" => Policy::Joint,
+        _ => {
+            let _ = writeln!(
+                io::stderr(),
+                "error[E_USAGE]: --policy must be naive or joint"
+            );
+            return ProcessExit::Usage as i32;
+        }
+    };
+    let mut deltas = Vec::new();
+    let mut delta_specs = Vec::new();
+    for spec in &delta {
+        match parse_delta(spec) {
+            Ok(d) => {
+                deltas.push(d);
+                delta_specs.push(spec.clone());
+            }
+            Err(msg) => {
+                let _ = writeln!(io::stderr(), "error[E_FAILSPEC]: {msg}");
+                return ProcessExit::BadInput as i32;
+            }
+        }
+    }
+    let mut fails: Vec<FailSpec> = Vec::new();
+    for spec in &fail {
+        match parse_fail_spec(spec) {
+            Ok(f) => fails.push(f),
+            Err(msg) => {
+                let _ = writeln!(io::stderr(), "error[E_FAILSPEC]: {msg}");
+                return ProcessExit::BadInput as i32;
+            }
+        }
+    }
+    let out_dir = match ensure_out_dir(&out) {
+        Ok(p) => p,
+        Err(msg) => {
+            let _ = writeln!(io::stderr(), "{msg}");
+            return ProcessExit::IoAbort as i32;
+        }
+    };
+
+    let (graph, topo_hash) = match load_topo(&topo) {
+        Ok(v) => v,
+        Err((code, msg)) => {
+            let _ = writeln!(io::stderr(), "{msg}");
+            return code as i32;
+        }
+    };
+    let mix_bytes = match std::fs::read(&mix_path) {
+        Ok(b) => b,
+        Err(e) => {
+            let _ = writeln!(io::stderr(), "error[E_IO]: {}: {e}", mix_path.display());
+            return ProcessExit::IoAbort as i32;
+        }
+    };
+    let mix_hash = sha256_hex(&mix_bytes);
+    let loaded = match load_mix(&mix_path) {
+        Ok(m) => m,
+        Err(e) => {
+            let _ = writeln!(io::stderr(), "{e}");
+            return e.exit() as i32;
+        }
+    };
+
+    let outcome = match run_plan(PlanConfig {
+        graph,
+        mix: loaded,
+        policy,
+        seed: 1,
+        out: out_dir.clone(),
+        strict: false,
+        mix_hash,
+        topo_hash,
+        fails,
+        deltas,
+        delta_specs,
+    }) {
+        Ok(o) => o,
+        Err(e) => {
+            let _ = writeln!(io::stderr(), "{e}");
+            return e.exit() as i32;
+        }
+    };
+    let report = outcome.report;
+    if let Err(e) = report.write_json(&out_dir.join("report.json")) {
+        let _ = writeln!(io::stderr(), "error[E_IO]: report.json: {e}");
+        return ProcessExit::IoAbort as i32;
+    }
+    if let Err(e) = write_html(&report, &out_dir.join("report.html")) {
+        let _ = writeln!(io::stderr(), "error[E_IO]: report.html: {e}");
+        return ProcessExit::IoAbort as i32;
+    }
+    if let Err(code) = report.print_stdout() {
+        let _ = writeln!(io::stderr(), "error[E_IO]: stdout write failed");
+        return code as i32;
+    }
+    if outcome.mix_does_not_fit {
+        let _ = writeln!(
+            io::stderr(),
+            "error[E_MIX]: isolated T_pred exceeds deadline or gpu_count > G_tot"
+        );
+        return ProcessExit::MixDoesNotFit as i32;
     }
     ProcessExit::Ok as i32
 }

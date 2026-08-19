@@ -34,13 +34,17 @@ pub struct RunConfig {
     pub fails: Vec<FailSpec>,
 }
 
-/// Post-run snapshot for PR9 tests (not serialized).
+/// Post-run snapshot for PR9/PR10 tests (not serialized).
 pub struct RunSnapshot {
     pub report: Report,
     pub epoch: EpochId,
     pub event_trace: Vec<(String, u32)>,
     pub bytes_epoch: Vec<u64>,
     pub graph: Graph,
+    /// GPUs in any non-rejected binding.
+    pub bound_gpus: Vec<GpuId>,
+    /// Links that spent any interval at util ≥ θ = 0.80 c_e.
+    pub hot_links: Vec<LinkId>,
 }
 
 #[derive(Debug)]
@@ -138,6 +142,7 @@ struct Kernel {
     pending_end_seq: BTreeMap<JobId, u64>,
     fail_log: Vec<serde_json::Value>,
     event_trace: Vec<(String, u32)>,
+    hot_links: Vec<bool>,
 }
 
 pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
@@ -197,6 +202,7 @@ pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
         pending_end_seq: BTreeMap::new(),
         fail_log: Vec::new(),
         event_trace: Vec::new(),
+        hot_links: vec![false; nlink],
     };
     for j in &cfg.mix.jobs {
         k.fel.push(
@@ -241,6 +247,9 @@ impl Kernel {
                 let r = load[i];
                 if c > 0 && r.saturating_mul(5) >= c.saturating_mul(4) {
                     self.hotspot_ps = self.hotspot_ps.saturating_add(dt);
+                    if i < self.hot_links.len() {
+                        self.hot_links[i] = true;
+                    }
                 }
                 self.rate_dt[i] = self.rate_dt[i].saturating_add((r as i128).saturating_mul(dt));
                 let dq = if r >= c {
@@ -1335,12 +1344,32 @@ impl Kernel {
             mean_link_util_ppm: mean_ppm,
         };
         self.traces.finish()?;
+        let mut bound_gpus = Vec::new();
+        for rec in self.table.by_id.values() {
+            if rec.state == JobState::Rejected {
+                continue;
+            }
+            if let Some(b) = &rec.binding {
+                for (_, g) in &b.map {
+                    bound_gpus.push(*g);
+                }
+            }
+        }
+        let hot_links: Vec<LinkId> = self
+            .hot_links
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| **h)
+            .map(|(i, _)| LinkId(i as u32))
+            .collect();
         Ok(RunSnapshot {
             report,
             epoch: self.graph.epoch,
             event_trace: self.event_trace,
             bytes_epoch: self.bytes_epoch,
             graph: (*self.graph).clone(),
+            bound_gpus,
+            hot_links,
         })
     }
 }
