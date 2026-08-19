@@ -3,6 +3,7 @@
 use fabric_topo::Graph;
 use fabric_types::LinkId;
 
+#[derive(Clone, Debug)]
 pub struct Residual {
     pub cir: Vec<u64>,
     pub r_avail: Vec<u64>,

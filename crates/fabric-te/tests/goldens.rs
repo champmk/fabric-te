@@ -21,23 +21,36 @@ fn out_dir(tag: &str) -> PathBuf {
 }
 
 fn run_policy(topo: &str, mix: &Path, out: &Path, seed: u64, policy: &str) -> std::process::Output {
+    run_policy_fails(topo, mix, out, seed, policy, &[])
+}
+
+fn run_policy_fails(
+    topo: &str,
+    mix: &Path,
+    out: &Path,
+    seed: u64,
+    policy: &str,
+    fails: &[&str],
+) -> std::process::Output {
     let _ = fs::remove_dir_all(out);
-    bin()
-        .args([
-            "run",
-            "--topo",
-            topo,
-            "--mix",
-            mix.to_str().expect("mix utf8"),
-            "--policy",
-            policy,
-            "--seed",
-            &seed.to_string(),
-            "--out",
-            out.to_str().expect("out utf8"),
-        ])
-        .output()
-        .expect("fabric-te run")
+    let mut cmd = bin();
+    cmd.args([
+        "run",
+        "--topo",
+        topo,
+        "--mix",
+        mix.to_str().expect("mix utf8"),
+        "--policy",
+        policy,
+        "--seed",
+        &seed.to_string(),
+        "--out",
+        out.to_str().expect("out utf8"),
+    ]);
+    for f in fails {
+        cmd.args(["--fail", f]);
+    }
+    cmd.output().expect("fabric-te run")
 }
 
 fn run_naive(topo: &str, mix: &Path, out: &Path, seed: u64) -> std::process::Output {
@@ -135,4 +148,66 @@ fn replay_seed_deterministic() {
     }
     let _ = fs::remove_dir_all(&a);
     let _ = fs::remove_dir_all(&b);
+}
+
+#[test]
+fn spine_down_golden() {
+    let mix = fixtures().join("mix/spine-down.toml");
+    let out = out_dir("spine-down-joint");
+    let got = run_policy_fails("n64", &mix, &out, 1, "joint", &["spine=3@1s"]);
+    let err = String::from_utf8_lossy(&got.stderr);
+    assert_eq!(got.status.code(), Some(0), "stderr={err}");
+    let r = read_report(&out);
+    assert_eq!(r["counts"]["admits"], 1, "admits");
+    assert_eq!(r["counts"]["kills"], 0, "kills");
+    assert_eq!(r["fails"][0]["epoch_to"], 1, "EpochId==1");
+    assert_eq!(r["fails"][0]["dead_link_bytes"], 0, "I2");
+    assert_eq!(r["fails"][0]["kills"].as_array().map(|a| a.len()), Some(0));
+    let n_reroute = r["fails"][0]["reroutes"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    assert!(
+        n_reroute <= 1,
+        "at most the one job rerouted, got {n_reroute}"
+    );
+    let golden = fixtures().join("golden/spine-down/joint.report.json");
+    if golden.exists() {
+        let g: Value = serde_json::from_str(&fs::read_to_string(&golden).expect("golden"))
+            .expect("golden json");
+        assert_eq!(g["counts"]["admits"], 1);
+        assert_eq!(g["counts"]["kills"], 0);
+    }
+    let _ = fs::remove_dir_all(&out);
+
+    // J1 finishes ~0.26 s; @50ms is mid-run so prepare must reroute (7 spines remain).
+    let out_live = out_dir("spine-down-live");
+    let got_live = run_policy_fails("n64", &mix, &out_live, 1, "joint", &["spine=3@50ms"]);
+    let err_live = String::from_utf8_lossy(&got_live.stderr);
+    assert_eq!(got_live.status.code(), Some(0), "live stderr={err_live}");
+    let rl = read_report(&out_live);
+    assert_eq!(rl["counts"]["kills"], 0);
+    assert_eq!(rl["fails"][0]["epoch_to"], 1);
+    let live_reroutes = rl["fails"][0]["reroutes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(live_reroutes, vec![serde_json::json!(1)], "job rerouted");
+    let _ = fs::remove_dir_all(&out_live);
+
+    let out_n = out_dir("spine-down-naive");
+    let got_n = run_policy_fails("n64", &mix, &out_n, 1, "naive", &["spine=3@1s"]);
+    let err_n = String::from_utf8_lossy(&got_n.stderr);
+    assert_eq!(got_n.status.code(), Some(0), "naive stderr={err_n}");
+    let rn = read_report(&out_n);
+    assert_eq!(rn["counts"]["admits"], 1, "naive admits");
+    assert_eq!(rn["counts"]["kills"], 0, "naive kills");
+    let golden_n = fixtures().join("golden/spine-down/naive.report.json");
+    if golden_n.exists() {
+        let g: Value = serde_json::from_str(&fs::read_to_string(&golden_n).expect("golden naive"))
+            .expect("golden naive json");
+        assert_eq!(g["counts"]["admits"], 1);
+        assert_eq!(g["counts"]["kills"], 0);
+    }
+    let _ = fs::remove_dir_all(&out_n);
 }

@@ -5,7 +5,7 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 
 use clap::{error::ErrorKind, Parser, Subcommand};
-use fabric_ctrl::{run_sim, RunConfig};
+use fabric_ctrl::{parse_fail_spec, run_sim, FailSpec, RunConfig};
 use fabric_model::{check_isolated, load_mix};
 use fabric_report::write_html;
 use fabric_topo::{default_rails, format_endpoint, Graph};
@@ -217,10 +217,14 @@ fn cmd_run(
             return ProcessExit::Usage as i32;
         }
     };
+    let mut fails: Vec<FailSpec> = Vec::new();
     for spec in &fail {
-        if let Err(msg) = parse_fail_spec(spec) {
-            let _ = writeln!(io::stderr(), "error[E_FAILSPEC]: {msg}");
-            return ProcessExit::BadInput as i32;
+        match parse_fail_spec(spec) {
+            Ok(f) => fails.push(f),
+            Err(msg) => {
+                let _ = writeln!(io::stderr(), "error[E_FAILSPEC]: {msg}");
+                return ProcessExit::BadInput as i32;
+            }
         }
     }
     let out_dir = match ensure_out_dir(&out) {
@@ -270,6 +274,7 @@ fn cmd_run(
         strict,
         mix_hash,
         topo_hash,
+        fails,
     }) {
         Ok(r) => r,
         Err(e) => {
@@ -561,46 +566,6 @@ fn load_topo(spec: &str) -> Result<(Graph, String), (ProcessExit, String)> {
 
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
-}
-
-/// `--fail` grammar §14.1. Valid specs are ignored in PR6 (no Fail* handling).
-fn parse_fail_spec(s: &str) -> Result<(), String> {
-    let (head, time) = match s.split_once('@') {
-        Some((h, t)) => (h, Some(t)),
-        None => (s, None),
-    };
-    let (kind, id) = head
-        .split_once('=')
-        .ok_or_else(|| format!("expected kind=id, got {s}"))?;
-    match kind {
-        "spine" | "leaf" | "rail" | "link" => {}
-        _ => return Err(format!("unknown fail kind {kind}")),
-    }
-    if id.parse::<u32>().is_err() {
-        return Err(format!("bad fail id {id}"));
-    }
-    if let Some(t) = time {
-        parse_fail_time(t)?;
-    }
-    Ok(())
-}
-
-fn parse_fail_time(s: &str) -> Result<i128, String> {
-    let unit_at = s.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(s.len());
-    let (num, unit) = s.split_at(unit_at);
-    let x: f64 = num.parse().map_err(|_| format!("bad fail time {s}"))?;
-    if !x.is_finite() {
-        return Err(format!("non-finite fail time {s}"));
-    }
-    let secs = match unit {
-        "" | "s" => x,
-        "ms" => x * 1e-3,
-        "us" => x * 1e-6,
-        "ns" => x * 1e-9,
-        "ps" => x * 1e-12,
-        _ => return Err(format!("bad fail time unit {unit}")),
-    };
-    Ok((secs * 1e12).round_ties_even() as i128)
 }
 
 /// Canonicalize. Dest must stay under CWD. Reject `..` and symlink escape. §16.4, §24

@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use fabric_model::Mix;
 use fabric_report::{tail_p99_ps, us_of, Counts, JobRow, Metrics, Report, TopoSummary};
@@ -11,10 +12,12 @@ use fabric_sim::{
 use fabric_topo::Graph;
 use fabric_trace::{ps_i64, EventRow, FlowRow, JobRow as TraceJob, LinkRow, TraceError, TraceSink};
 use fabric_types::{
-    FlowId, GpuId, JobId, JobState, LinkId, Policy, ProcessExit, RecomputeReason, RejectCode,
+    EpochId, FlowId, GpuId, JobId, JobState, LinkId, Policy, ProcessExit, RecomputeReason,
+    RejectCode,
 };
 use serde_json::json;
 
+use crate::epoch::{prepare, EpochPlan, FailSpec};
 use crate::joint::joint_admit;
 use crate::naive::naive_admit;
 use crate::table::{BindingNote, Flow as PlannedFlow, JobTable};
@@ -28,6 +31,16 @@ pub struct RunConfig {
     pub strict: bool,
     pub mix_hash: String,
     pub topo_hash: String,
+    pub fails: Vec<FailSpec>,
+}
+
+/// Post-run snapshot for PR9 tests (not serialized).
+pub struct RunSnapshot {
+    pub report: Report,
+    pub epoch: EpochId,
+    pub event_trace: Vec<(String, u32)>,
+    pub bytes_epoch: Vec<u64>,
+    pub graph: Graph,
 }
 
 #[derive(Debug)]
@@ -83,7 +96,7 @@ struct LiveFlow {
 }
 
 struct Kernel {
-    graph: Graph,
+    graph: Arc<Graph>,
     residual: Residual,
     table: JobTable,
     fel: Fel,
@@ -121,9 +134,17 @@ struct Kernel {
     mix_hash: String,
     topo_hash: String,
     horizon_ps: i128,
+    admit_frozen: bool,
+    pending_end_seq: BTreeMap<JobId, u64>,
+    fail_log: Vec<serde_json::Value>,
+    event_trace: Vec<(String, u32)>,
 }
 
 pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
+    Ok(run_sim_snapshot(cfg)?.report)
+}
+
+pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
     let g_tot = cfg.graph.gpus.len() as u32;
     let snap_period_ps = if g_tot > 2048 {
         10_000_000_000 // 10 ms
@@ -136,13 +157,14 @@ pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
     for j in &cfg.mix.jobs {
         specs.insert(j.id, j.clone());
     }
+    let graph = Arc::new(cfg.graph);
     let mut k = Kernel {
-        residual: Residual::new(&cfg.graph),
+        residual: Residual::new(&graph),
         q_bytes: vec![0; nlink],
         overflowed: vec![false; nlink],
         bytes_epoch: vec![0; nlink],
         rate_dt: vec![0; nlink],
-        graph: cfg.graph,
+        graph,
         table: JobTable::new(),
         fel: Fel::new(),
         traces,
@@ -171,6 +193,10 @@ pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
         mix_hash: cfg.mix_hash,
         topo_hash: cfg.topo_hash,
         horizon_ps: cfg.mix.horizon_ps,
+        admit_frozen: false,
+        pending_end_seq: BTreeMap::new(),
+        fail_log: Vec::new(),
+        event_trace: Vec::new(),
     };
     for j in &cfg.mix.jobs {
         k.fel.push(
@@ -178,6 +204,10 @@ pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
             EventKind::JobArrive,
             EventPayload::JobArrive { job: j.id },
         );
+    }
+    for f in &cfg.fails {
+        let (kind, payload) = f.event();
+        k.fel.push(f.t_ps, kind, payload);
     }
     k.fel.push(
         cfg.mix.horizon_ps,
@@ -306,6 +336,8 @@ impl Kernel {
                 (None, None, None, None, None, None)
             }
         };
+        self.event_trace
+            .push((e.kind.as_str().to_string(), self.graph.epoch.0));
         self.traces.event(EventRow {
             t_ps: ps_i64(e.t.ps),
             seq: e.t.seq,
@@ -330,7 +362,7 @@ impl Kernel {
                 self.on_collective_start(job, step, e.t.ps)
             }
             EventPayload::CollectiveEnd { job, step } => {
-                self.on_collective_end(job, step, e.t.ps)?
+                self.on_collective_end(job, step, e.t.ps, e.t.seq)?
             }
             EventPayload::FlowArrive { flow } => self.on_flow_arrive(flow)?,
             EventPayload::FlowDepart { flow } => self.on_flow_depart(flow, e.t.ps),
@@ -342,14 +374,21 @@ impl Kernel {
             EventPayload::LinkFail { .. }
             | EventPayload::LeafFail { .. }
             | EventPayload::RailFail { .. }
-            | EventPayload::SpineFail { .. }
-            | EventPayload::DrainComplete { .. }
-            | EventPayload::EpochAdvance { .. } => {}
+            | EventPayload::SpineFail { .. } => self.on_fail_star(e)?,
+            EventPayload::DrainComplete { .. } | EventPayload::EpochAdvance { .. } => {}
         }
         Ok(false)
     }
 
     fn on_arrive(&mut self, job: JobId) -> Result<(), RunError> {
+        if self.admit_frozen {
+            self.fel.push(
+                self.now,
+                EventKind::JobArrive,
+                EventPayload::JobArrive { job },
+            );
+            return Ok(());
+        }
         self.counts.arrivals += 1;
         let spec = self
             .specs
@@ -500,9 +539,19 @@ impl Kernel {
                 EventPayload::CollectiveEnd { job, step },
             );
         }
+        self.pending_end_seq.insert(job, self.fel.last_push_seq());
     }
 
-    fn on_collective_end(&mut self, job: JobId, step: u32, now: i128) -> Result<(), RunError> {
+    fn on_collective_end(
+        &mut self,
+        job: JobId,
+        step: u32,
+        now: i128,
+        seq: u64,
+    ) -> Result<(), RunError> {
+        if self.pending_end_seq.get(&job) != Some(&seq) {
+            return Ok(());
+        }
         let t0 = self.collective_start.remove(&job).unwrap_or(now);
         let dur = now.saturating_sub(t0);
         let (more, compute, d_j, killed) = {
@@ -569,7 +618,7 @@ impl Kernel {
         };
         for &e in &f.path.links {
             let i = e.0 as usize;
-            if i < self.bytes_epoch.len() {
+            if i < self.bytes_epoch.len() && self.graph.links.get(i).is_some_and(|l| !l.failed) {
                 self.bytes_epoch[i] = self.bytes_epoch[i].saturating_add(f.bytes);
             }
         }
@@ -631,7 +680,7 @@ impl Kernel {
                 self.inflight.remove(&fid);
                 self.flows.remove(&fid);
             }
-            self.release_job(id);
+            self.drop_occ(id);
             self.job_exit.insert(id, now);
             self.write_job_trace(id, "kill", now);
             self.counts.kills += 1;
@@ -643,6 +692,154 @@ impl Kernel {
         }
         self.recompute_realized();
         self.snapshot_all_links(now);
+        Ok(())
+    }
+
+    fn on_fail_star(&mut self, first: &Event) -> Result<(), RunError> {
+        self.admit_frozen = true;
+        let mut fails = vec![first.clone()];
+        fails.extend(self.fel.drain_fails_at(first.t.ps));
+        for extra in fails.iter().skip(1) {
+            self.trace_event(extra);
+        }
+        let plan = prepare(
+            &self.graph,
+            &self.residual,
+            &self.table,
+            &fails,
+            self.policy,
+            self.strict,
+            &self.bytes_epoch,
+        )
+        .map_err(|code| RunError::Inv(code.as_str().into()))?;
+        self.commit(plan, first.t.ps)?;
+        Ok(())
+    }
+
+    fn commit(&mut self, plan: EpochPlan, now: i128) -> Result<(), RunError> {
+        self.graph = Arc::new(plan.graph);
+        self.residual = plan.residual;
+        self.bytes_epoch.fill(0);
+
+        let kills = plan.kills.clone();
+        let reroutes = plan.reroutes.clone();
+        for id in &kills {
+            if let Some(rec) = self.table.by_id.get_mut(id) {
+                rec.state = JobState::Killed;
+            }
+            self.abort_job_flows(*id, now, false);
+            self.drop_occ(*id);
+            self.job_exit.insert(*id, now);
+            self.write_job_trace(*id, "kill", now);
+            self.counts.kills += 1;
+        }
+        for r in &reroutes {
+            if let Some(rec) = self.table.by_id.get_mut(&r.job) {
+                rec.paths = r.paths.clone();
+                rec.planned = r.planned.clone();
+                rec.cir = r.cir.clone();
+                rec.t_pred_ps = r.t_pred_ps;
+            }
+            let collecting = self
+                .table
+                .by_id
+                .get(&r.job)
+                .is_some_and(|rec| rec.state == JobState::Collecting);
+            if collecting && self.collective_start.contains_key(&r.job) {
+                if let Some(t0) = self.collective_start.get(&r.job).copied() {
+                    self.disrupted_ps = self.disrupted_ps.saturating_add(now.saturating_sub(t0));
+                }
+                self.abort_job_flows(r.job, now, true);
+                let step = self
+                    .table
+                    .by_id
+                    .get(&r.job)
+                    .map(|rec| rec.step_index)
+                    .unwrap_or(0);
+                self.fel.push(
+                    now,
+                    EventKind::CollectiveStart,
+                    EventPayload::CollectiveStart { job: r.job, step },
+                );
+            }
+        }
+
+        self.need_cir_replay = true;
+        self.queue_recompute(now, RecomputeReason::EpochCommit);
+        for id in &kills {
+            self.fel.push(
+                now,
+                EventKind::DrainComplete,
+                EventPayload::DrainComplete { job: *id },
+            );
+        }
+        self.fel.push(
+            now,
+            EventKind::EpochAdvance,
+            EventPayload::EpochAdvance {
+                from: plan.from,
+                to: plan.to,
+            },
+        );
+
+        let dead_bytes: u64 = self
+            .graph
+            .links
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.failed)
+            .map(|(i, _)| self.bytes_epoch.get(i).copied().unwrap_or(0))
+            .sum();
+        self.fail_log.push(json!({
+            "t_ps": now as i64,
+            "kills": kills.iter().map(|j| j.0).collect::<Vec<_>>(),
+            "reroutes": reroutes.iter().map(|r| r.job.0).collect::<Vec<_>>(),
+            "epoch_from": plan.from.0,
+            "epoch_to": plan.to.0,
+            "dead_link_bytes": dead_bytes,
+        }));
+        self.check_i2()?;
+        if !crate::epoch::i3_holds(&self.graph, &self.table) {
+            self.invariants_ok = false;
+            if self.strict {
+                return Err(RunError::Inv("I3".into()));
+            }
+        }
+        self.admit_frozen = false;
+        Ok(())
+    }
+
+    fn abort_job_flows(&mut self, job: JobId, now: i128, emit_depart: bool) {
+        let ids: Vec<FlowId> = self
+            .flows
+            .iter()
+            .filter(|(_, f)| f.job == job)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ids {
+            if emit_depart && self.inflight.contains_key(&id) {
+                if let Some(f) = self.flows.get_mut(&id) {
+                    let elapsed = now.saturating_sub(f.t_arrive_ps).max(0);
+                    let moved =
+                        ((f.rate_Bps as i128).saturating_mul(elapsed) / 1_000_000_000_000) as u64;
+                    f.bytes = moved.min(f.bytes);
+                    f.t_depart_ps = now;
+                }
+                self.on_flow_depart(id, now);
+            } else {
+                self.inflight.remove(&id);
+                self.flows.remove(&id);
+            }
+        }
+    }
+
+    fn check_i2(&mut self) -> Result<(), RunError> {
+        if !crate::epoch::i2_holds(&self.graph, &self.bytes_epoch) {
+            self.invariants_ok = false;
+            if self.strict {
+                return Err(RunError::Inv("I2".into()));
+            }
+        }
         Ok(())
     }
 
@@ -658,25 +855,30 @@ impl Kernel {
         );
     }
 
+    fn drop_occ(&mut self, id: JobId) {
+        let gpus: Vec<GpuId> = self
+            .table
+            .by_id
+            .get(&id)
+            .and_then(|rec| rec.binding.as_ref())
+            .map(|b| b.map.iter().map(|(_, g)| *g).collect())
+            .unwrap_or_default();
+        for g in gpus {
+            self.table.occ.by_gpu.remove(&g);
+        }
+    }
+
     fn release_job(&mut self, id: JobId) {
-        let (cir, gpus) = {
+        let cir = {
             let Some(rec) = self.table.by_id.get(&id) else {
                 return;
             };
-            let cir = rec.cir.clone();
-            let gpus: Vec<GpuId> = rec
-                .binding
-                .as_ref()
-                .map(|b| b.map.iter().map(|(_, g)| *g).collect())
-                .unwrap_or_default();
-            (cir, gpus)
+            rec.cir.clone()
         };
         for (&e, &rho) in &cir {
             self.residual.release_cir(&self.graph, e, rho);
         }
-        for g in gpus {
-            self.table.occ.by_gpu.remove(&g);
-        }
+        self.drop_occ(id);
     }
 
     fn replay_cir(&mut self) {
@@ -1043,7 +1245,7 @@ impl Kernel {
         });
     }
 
-    fn finish(self) -> Result<Report, RunError> {
+    fn finish(self) -> Result<RunSnapshot, RunError> {
         let mut report = Report::new(
             self.seed,
             self.policy,
@@ -1063,6 +1265,7 @@ impl Kernel {
         report.counts = self.counts.clone();
         report.rejects_by_code = self.rejects_by_code.clone();
         report.invariants_ok = self.invariants_ok;
+        report.fails = self.fail_log.clone();
 
         let mut last_max = 0i128;
         for &d in &self.collective_durs {
@@ -1132,7 +1335,13 @@ impl Kernel {
             mean_link_util_ppm: mean_ppm,
         };
         self.traces.finish()?;
-        Ok(report)
+        Ok(RunSnapshot {
+            report,
+            epoch: self.graph.epoch,
+            event_trace: self.event_trace,
+            bytes_epoch: self.bytes_epoch,
+            graph: (*self.graph).clone(),
+        })
     }
 }
 

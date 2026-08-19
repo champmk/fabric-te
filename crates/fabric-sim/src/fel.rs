@@ -60,6 +60,11 @@ impl Fel {
         self.heap.peek().map(|Reverse(e)| e.t.ps)
     }
 
+    /// Seq assigned to the most recent `push`.
+    pub fn last_push_seq(&self) -> u64 {
+        self.next_seq.saturating_sub(1)
+    }
+
     /// Coalesce Fail* at `ps`. Other events at `ps` stay, with their original seq.
     pub fn drain_fails_at(&mut self, ps: i128) -> Vec<Event> {
         let mut fails = Vec::new();

@@ -22,14 +22,14 @@ const DEFAULT_SCRATCH: f64 = 0.05;
 const DEFAULT_FILL: f64 = 1.0;
 const DEFAULT_BUFFER_BYTES: u64 = 33_554_432;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Node {
     pub id: NodeId,
     pub gpus: Vec<GpuId>, // length R, local rank order
     pub present: bool,    // false after delay-row
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Gpu {
     pub id: GpuId,
     pub node: NodeId,
@@ -38,7 +38,7 @@ pub struct Gpu {
     pub avail: GpuAvail, // Present | Unavailable. Never Occupied — that is Occupancy
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Leaf {
     pub id: LeafId,
     pub rail: RailId,
@@ -46,13 +46,13 @@ pub struct Leaf {
     pub failed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Spine {
     pub id: SpineId,
     pub failed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Link {
     pub id: LinkId,
     pub src: Endpoint,
@@ -63,7 +63,7 @@ pub struct Link {
     pub bytes_this_epoch: u64, // I2: must be 0 if failed
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Graph {
     pub epoch: EpochId,
     pub params: TopoParams,
@@ -74,7 +74,7 @@ pub struct Graph {
     pub links: Vec<Link>, // index == LinkId.0
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TopoParams {
     pub nodes: u32,
     pub gpus_per_node: u32,     // = 8

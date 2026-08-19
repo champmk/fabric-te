@@ -1,0 +1,16 @@
+# fixtures/mix/spine-down.toml — §18.4 spine-down
+seed = 1
+horizon_s = 2.0
+
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 40
+dp = 40
+tp = 1
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+step_count = 20
+compute_s = 0.010
+deadline_s = 0.010
