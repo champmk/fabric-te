@@ -183,6 +183,30 @@ impl EventKind {
             EventKind::HorizonCut => "HorizonCut",
         }
     }
+
+    /// EventKind / EventPayload 1:1. Mismatch is I3-class (`E_INV`).
+    pub const fn matches_payload(self, payload: &EventPayload) -> bool {
+        matches!(
+            (self, payload),
+            (EventKind::JobArrive, EventPayload::JobArrive { .. })
+                | (EventKind::StepBoundary, EventPayload::StepBoundary { .. })
+                | (
+                    EventKind::CollectiveStart,
+                    EventPayload::CollectiveStart { .. }
+                )
+                | (EventKind::CollectiveEnd, EventPayload::CollectiveEnd { .. })
+                | (EventKind::FlowArrive, EventPayload::FlowArrive { .. })
+                | (EventKind::FlowDepart, EventPayload::FlowDepart { .. })
+                | (EventKind::RateRecompute, EventPayload::RateRecompute { .. })
+                | (EventKind::LinkFail, EventPayload::LinkFail { .. })
+                | (EventKind::LeafFail, EventPayload::LeafFail { .. })
+                | (EventKind::RailFail, EventPayload::RailFail { .. })
+                | (EventKind::SpineFail, EventPayload::SpineFail { .. })
+                | (EventKind::DrainComplete, EventPayload::DrainComplete { .. })
+                | (EventKind::EpochAdvance, EventPayload::EpochAdvance { .. })
+                | (EventKind::HorizonCut, EventPayload::HorizonCut)
+        )
+    }
 }
 
 impl RejectCode {

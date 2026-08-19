@@ -50,6 +50,7 @@ fn run_policy_fails(
         &seed.to_string(),
         "--out",
         out.to_str().expect("out utf8"),
+        "--strict",
     ]);
     for f in fails {
         cmd.args(["--fail", f]);
@@ -367,7 +368,7 @@ fn example_c_golden() {
             policy,
             seed: 1,
             out: out.clone(),
-            strict: false,
+            strict: true,
             mix_hash: mix_hash.clone(),
             topo_hash: topo_hash.clone(),
             fails: Vec::new(),

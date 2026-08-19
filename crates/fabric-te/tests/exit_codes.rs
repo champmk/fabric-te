@@ -207,6 +207,141 @@ fn explain_sparse_admit_no_panic() {
 }
 
 #[test]
+fn cli_exit_codes() {
+    use fabric_ctrl::{run_sim, Occupancy, RunConfig};
+    use fabric_model::Mix;
+    use fabric_topo::Graph;
+    use fabric_types::{GpuId, JobId, Policy, ProcessExit};
+
+    // usage → 1
+    let usage = bin().output().expect("usage");
+    assert_eq!(usage.status.code(), Some(1));
+
+    let dir = std::env::current_dir()
+        .expect("cwd")
+        .join(format!("out-pr12-cli-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+
+    // bad toml → 2
+    let bad = dir.join("bad.toml");
+    std::fs::write(&bad, "this is not {{{{ toml").expect("write bad toml");
+    let out2 = dir.join("out-bad");
+    let got2 = bin()
+        .args([
+            "run",
+            "--topo",
+            "n32",
+            "--mix",
+            bad.to_str().unwrap(),
+            "--policy",
+            "naive",
+            "--out",
+            out2.to_str().unwrap(),
+        ])
+        .output()
+        .expect("bad toml");
+    let err2 = String::from_utf8_lossy(&got2.stderr);
+    assert_eq!(got2.status.code(), Some(2), "{err2}");
+    assert!(
+        err2.contains("E_PARSE") || err2.contains("E_SCHEMA"),
+        "{err2}"
+    );
+
+    // --strict broken I → 3 (same kernel the CLI calls)
+    let graph = Graph::generate(256, 8, 1).expect("n32");
+    let mut occ = Occupancy::new();
+    occ.by_gpu.insert(GpuId(999_999), JobId(1));
+    let mix = Mix {
+        seed: 1,
+        horizon_ps: 1_000_000_000,
+        jobs: Vec::new(),
+    };
+    let out3 = dir.join("out-inv");
+    let err = run_sim(RunConfig {
+        graph,
+        mix,
+        policy: Policy::Naive,
+        seed: 1,
+        out: out3,
+        strict: true,
+        mix_hash: "t".into(),
+        topo_hash: "t".into(),
+        fails: Vec::new(),
+        occupancy: occ,
+        residual: None,
+    })
+    .expect_err("I4 must trip");
+    assert_eq!(err.exit(), ProcessExit::InvariantFail);
+    assert_eq!(err.exit() as i32, 3);
+    let msg = err.to_string();
+    assert!(msg.contains("E_INV"), "{msg}");
+    assert!(msg.contains("I4"), "{msg}");
+
+    // isolated miss → 4 (named test already covers; pin here)
+    let iso = dir.join("iso.toml");
+    std::fs::write(
+        &iso,
+        r#"
+horizon_s = 1
+[[jobs]]
+id = 1
+arrive_s = 0.0
+gpu_count = 8
+dp = 8
+tp = 1
+pp = 1
+collective = "ring_allreduce"
+payload_bytes = 67108864
+deadline_s = 0.000001
+"#,
+    )
+    .expect("iso mix");
+    let out4 = dir.join("out-iso");
+    let got4 = bin()
+        .args([
+            "run",
+            "--topo",
+            "n32",
+            "--mix",
+            iso.to_str().unwrap(),
+            "--policy",
+            "naive",
+            "--out",
+            out4.to_str().unwrap(),
+        ])
+        .output()
+        .expect("iso");
+    let err4 = String::from_utf8_lossy(&got4.stderr);
+    assert_eq!(got4.status.code(), Some(4), "{err4}");
+
+    // unwritable --out → 5
+    let blocked = dir.join("not-a-dir");
+    std::fs::write(&blocked, b"file").expect("blocker");
+    let mix_ok =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/mix/empty.toml");
+    let got5 = bin()
+        .args([
+            "run",
+            "--topo",
+            "n32",
+            "--mix",
+            mix_ok.to_str().unwrap(),
+            "--policy",
+            "naive",
+            "--out",
+            blocked.to_str().unwrap(),
+            "--strict",
+        ])
+        .output()
+        .expect("unwritable");
+    let err5 = String::from_utf8_lossy(&got5.stderr);
+    assert_eq!(got5.status.code(), Some(5), "{err5}");
+    assert!(err5.contains("E_IO"), "{err5}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn explain_link_and_fail_placeholders() {
     let dir = std::env::current_dir()
         .expect("cwd")

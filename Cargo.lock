@@ -501,9 +501,11 @@ dependencies = [
  "fabric-model",
  "fabric-report",
  "fabric-topo",
+ "fabric-trace",
  "fabric-types",
  "serde_json",
  "sha2",
+ "toml",
 ]
 
 [[package]]

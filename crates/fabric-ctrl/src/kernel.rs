@@ -17,7 +17,8 @@ use fabric_types::{
 };
 use serde_json::json;
 
-use crate::epoch::{prepare, EpochPlan, FailSpec};
+use crate::epoch::{i2_holds, i3_holds, prepare, EpochPlan, FailSpec};
+use crate::inv::{self, LiveCounters};
 use crate::joint::joint_admit;
 use crate::naive::naive_admit;
 use crate::table::{BindingNote, Flow as PlannedFlow, JobTable, Occupancy};
@@ -149,6 +150,9 @@ struct Kernel {
     hot_links: Vec<bool>,
     /// Fixture CIR (Example C `inject_cir`) restored on every replay.
     base_cir: Vec<u64>,
+    fel_seen: bool,
+    last_fel_ps: i128,
+    last_fel_seq: u64,
 }
 
 pub fn run_sim(cfg: RunConfig) -> Result<Report, RunError> {
@@ -214,7 +218,11 @@ pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
         event_trace: Vec::new(),
         hot_links: vec![false; nlink],
         base_cir,
+        fel_seen: false,
+        last_fel_ps: 0,
+        last_fel_seq: 0,
     };
+    k.check_mutate()?;
     for j in &cfg.mix.jobs {
         k.fel.push(
             j.arrive.ps,
@@ -233,6 +241,10 @@ pub fn run_sim_snapshot(cfg: RunConfig) -> Result<RunSnapshot, RunError> {
     );
 
     while let Some(ev) = k.fel.pop() {
+        k.check_i8(ev.t.ps, ev.t.seq)?;
+        if !ev.kind.matches_payload(&ev.payload) {
+            k.fail_inv("I3")?;
+        }
         k.advance(ev.t.ps);
         k.trace_event(&ev);
         let stop = k.handle(&ev)?;
@@ -454,6 +466,7 @@ impl Kernel {
                 self.write_job_trace(job, "reject", self.now);
             }
         }
+        self.check_mutate()?;
         Ok(())
     }
 
@@ -664,6 +677,7 @@ impl Kernel {
         }
         self.recompute_realized();
         self.check_i1()?;
+        self.check_mutate()?;
         self.snapshot_all_links(now);
         Ok(())
     }
@@ -711,6 +725,8 @@ impl Kernel {
             self.need_cir_replay = false;
         }
         self.recompute_realized();
+        self.check_i1()?;
+        self.check_mutate()?;
         self.snapshot_all_links(now);
         Ok(())
     }
@@ -731,7 +747,19 @@ impl Kernel {
             self.strict,
             &self.bytes_epoch,
         )
-        .map_err(|code| RunError::Inv(code.as_str().into()))?;
+        .map_err(|code| {
+            if code == RejectCode::EpochPrepareFailed {
+                if !i2_holds(&self.graph, &self.bytes_epoch) {
+                    RunError::Inv("I2".into())
+                } else if !i3_holds(&self.graph, &self.table) {
+                    RunError::Inv("I3".into())
+                } else {
+                    RunError::Inv("I2".into())
+                }
+            } else {
+                RunError::Inv(code.as_str().into())
+            }
+        })?;
         self.commit(plan, first.t.ps)?;
         Ok(())
     }
@@ -819,12 +847,10 @@ impl Kernel {
             "dead_link_bytes": dead_bytes,
         }));
         self.check_i2()?;
-        if !crate::epoch::i3_holds(&self.graph, &self.table) {
-            self.invariants_ok = false;
-            if self.strict {
-                return Err(RunError::Inv("I3".into()));
-            }
+        if !i3_holds(&self.graph, &self.table) {
+            self.fail_inv("I3")?;
         }
+        self.check_mutate()?;
         self.admit_frozen = false;
         Ok(())
     }
@@ -854,11 +880,8 @@ impl Kernel {
     }
 
     fn check_i2(&mut self) -> Result<(), RunError> {
-        if !crate::epoch::i2_holds(&self.graph, &self.bytes_epoch) {
-            self.invariants_ok = false;
-            if self.strict {
-                return Err(RunError::Inv("I2".into()));
-            }
+        if !i2_holds(&self.graph, &self.bytes_epoch) {
+            return self.fail_inv("I2");
         }
         Ok(())
     }
@@ -1074,27 +1097,87 @@ impl Kernel {
         }
     }
 
+    fn fail_inv(&mut self, name: &'static str) -> Result<(), RunError> {
+        self.invariants_ok = false;
+        if self.strict {
+            Err(RunError::Inv(name.into()))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_i8(&mut self, ps: i128, seq: u64) -> Result<(), RunError> {
+        let prev = if self.fel_seen {
+            Some((self.last_fel_ps, self.last_fel_seq))
+        } else {
+            None
+        };
+        if !inv::i8_holds(prev, (ps, seq)) {
+            return self.fail_inv("I8");
+        }
+        self.fel_seen = true;
+        self.last_fel_ps = ps;
+        self.last_fel_seq = seq;
+        Ok(())
+    }
+
+    fn inv_ctx<'a>(&'a self, load: &'a [u64], paths: &'a [Path]) -> inv::Ctx<'a> {
+        inv::Ctx {
+            graph: self.graph.as_ref(),
+            residual: &self.residual,
+            table: &self.table,
+            policy: self.policy,
+            inflight_load: load,
+            bytes_epoch: &self.bytes_epoch,
+            inflight_paths: paths,
+        }
+    }
+
+    fn inflight_paths(&self) -> Vec<Path> {
+        self.inflight
+            .keys()
+            .filter_map(|id| self.flows.get(id).map(|f| f.path.clone()))
+            .collect()
+    }
+
+    /// `--strict` on residual / occupancy mutate. Always stamps `invariants_ok`.
+    fn check_mutate(&mut self) -> Result<(), RunError> {
+        let load = self.inflight_load();
+        let paths = self.inflight_paths();
+        let broken = {
+            let ctx = self.inv_ctx(&load, &paths);
+            inv::first_mutate_broken(&ctx)
+        };
+        if let Some(name) = broken {
+            return self.fail_inv(name);
+        }
+        Ok(())
+    }
+
     fn check_i1(&mut self) -> Result<(), RunError> {
         let load = self.inflight_load();
-        for (i, link) in self.graph.links.iter().enumerate() {
-            if load[i] > link.capacity_Bps {
-                self.invariants_ok = false;
-                if self.strict {
-                    return Err(RunError::Inv("I1".into()));
-                }
-            }
+        let paths = self.inflight_paths();
+        let bad = {
+            let ctx = self.inv_ctx(&load, &paths);
+            !inv::i1_holds(&ctx)
+        };
+        if bad {
+            return self.fail_inv("I1");
         }
-        if self.policy == Policy::Joint {
-            for (i, link) in self.graph.links.iter().enumerate() {
-                let cir = self.residual.cir.get(i).copied().unwrap_or(0);
-                let cap95 = Residual::admissible(&self.graph, link.id);
-                if cir > cap95 {
-                    self.invariants_ok = false;
-                    if self.strict {
-                        return Err(RunError::Inv("I1".into()));
-                    }
-                }
-            }
+        Ok(())
+    }
+
+    fn check_i6(&mut self) -> Result<(), RunError> {
+        let log = self.traces.rollup();
+        let live = LiveCounters {
+            arrivals: self.counts.arrivals,
+            admits: self.counts.admits,
+            rejects: self.counts.rejects,
+            kills: self.counts.kills,
+            completes: self.counts.completes,
+        };
+        if !inv::i6_holds(&live, &log) {
+            return self.fail_inv("I6");
         }
         Ok(())
     }
@@ -1270,7 +1353,8 @@ impl Kernel {
         });
     }
 
-    fn finish(self) -> Result<RunSnapshot, RunError> {
+    fn finish(mut self) -> Result<RunSnapshot, RunError> {
+        self.check_i6()?;
         let mut report = Report::new(
             self.seed,
             self.policy,

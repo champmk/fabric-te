@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayRef, Int64Array, ListBuilder, StringArray, UInt32Array, UInt32Builder, UInt64Array,
+    Array, ArrayRef, Int64Array, ListBuilder, StringArray, UInt32Array, UInt32Builder, UInt64Array,
     UInt8Array,
 };
 use arrow::datatypes::{DataType, Field, Schema};
@@ -19,6 +19,16 @@ use parquet::file::properties::WriterProperties;
 use serde_json::Value;
 
 const LINK_ROW_CAP: usize = 50_000;
+
+/// I6: rollup of events / admit.jsonl / jobs.parquet.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TraceRollup {
+    pub arrivals: u64,
+    pub admits: u64,
+    pub rejects: u64,
+    pub kills: u64,
+    pub completes: u64,
+}
 
 #[derive(Debug)]
 pub struct TraceError(pub String);
@@ -110,6 +120,8 @@ pub struct TraceSink {
     link_written: Vec<u32>,
     link_stride: Vec<u32>,
     link_tick: Vec<u32>,
+    admit_ok: u64,
+    admit_reject: u64,
 }
 
 impl TraceSink {
@@ -128,7 +140,29 @@ impl TraceSink {
             link_written: Vec::new(),
             link_stride: Vec::new(),
             link_tick: Vec::new(),
+            admit_ok: 0,
+            admit_reject: 0,
         })
+    }
+
+    /// I6: in-memory event/admit/job counts.
+    pub fn rollup(&self) -> TraceRollup {
+        let mut r = TraceRollup::default();
+        for e in &self.events {
+            if e.kind == "JobArrive" {
+                r.arrivals = r.arrivals.saturating_add(1);
+            }
+        }
+        r.admits = self.admit_ok;
+        r.rejects = self.admit_reject;
+        for j in &self.jobs {
+            match j.decision.as_str() {
+                "kill" => r.kills = r.kills.saturating_add(1),
+                "admit" => r.completes = r.completes.saturating_add(1),
+                _ => {}
+            }
+        }
+        r
     }
 
     pub fn event(&mut self, row: EventRow) {
@@ -167,6 +201,11 @@ impl TraceSink {
     pub fn admit_line(&mut self, v: &Value) -> Result<(), TraceError> {
         serde_json::to_writer(&mut self.admit, v).map_err(|e| TraceError(e.to_string()))?;
         self.admit.write_all(b"\n")?;
+        match v.get("decision").and_then(|d| d.as_str()) {
+            Some("admit") => self.admit_ok = self.admit_ok.saturating_add(1),
+            Some("reject") => self.admit_reject = self.admit_reject.saturating_add(1),
+            _ => {}
+        }
         Ok(())
     }
 
@@ -365,4 +404,63 @@ fn write_jobs(dir: &Path, rows: &[JobRow]) -> Result<(), TraceError> {
 
 pub fn ps_i64(ps: i128) -> i64 {
     ps.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+}
+
+/// I6: rollup parquet + admit.jsonl under `--out`.
+pub fn rollup_dir(dir: &Path) -> Result<TraceRollup, TraceError> {
+    let mut r = TraceRollup::default();
+    r.arrivals = count_kind(dir, "events.parquet", "kind", "JobArrive")?;
+    let jobs = string_col(dir, "jobs.parquet", "decision")?;
+    for d in jobs {
+        match d.as_str() {
+            "kill" => r.kills = r.kills.saturating_add(1),
+            "admit" => r.completes = r.completes.saturating_add(1),
+            _ => {}
+        }
+    }
+    let admit_path = dir.join("admit.jsonl");
+    if admit_path.exists() {
+        let s = fs::read_to_string(&admit_path)?;
+        for line in s.lines().filter(|l| !l.trim().is_empty()) {
+            let v: Value = serde_json::from_str(line).map_err(|e| TraceError(e.to_string()))?;
+            match v.get("decision").and_then(|d| d.as_str()) {
+                Some("admit") => r.admits = r.admits.saturating_add(1),
+                Some("reject") => r.rejects = r.rejects.saturating_add(1),
+                _ => {}
+            }
+        }
+    }
+    Ok(r)
+}
+
+fn count_kind(dir: &Path, file: &str, col: &str, want: &str) -> Result<u64, TraceError> {
+    Ok(string_col(dir, file, col)?
+        .into_iter()
+        .filter(|k| k == want)
+        .count() as u64)
+}
+
+fn string_col(dir: &Path, file: &str, col: &str) -> Result<Vec<String>, TraceError> {
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    let path = dir.join(file);
+    let f = File::open(&path)?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(f)?;
+    let reader = builder.build()?;
+    let mut out = Vec::new();
+    for batch in reader {
+        let batch = batch?;
+        let arr = batch
+            .column_by_name(col)
+            .ok_or_else(|| TraceError(format!("missing column {col}")))?;
+        let s = arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| TraceError(format!("column {col} not utf8")))?;
+        for i in 0..s.len() {
+            if s.is_valid(i) {
+                out.push(s.value(i).to_string());
+            }
+        }
+    }
+    Ok(out)
 }

@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-19  
 Repo name: **fabric-te**  
-Phase: PR11 implemented. **Next: PR12.**
+Phase: PR12 implemented. **Next: PR13.**
 
-**Next:** PR12 — invariants + parity.
+**Next:** PR13 — as-built + README freeze.
 
 ## How to use this file
 
@@ -12,9 +12,9 @@ Phase: PR11 implemented. **Next: PR12.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR12)
+## Read for next (PR13)
 
-`docs/DESIGN.md` §18.2–§18.3.
+`docs/DESIGN.md` §30 PR13 — `README.md`, `docs/ASBUILT.md`. Stranger path: clone, `cargo test --workspace`, `topo --gpus 256 --dump`, `default-mix-512`.
 
 ---
 
@@ -30,7 +30,7 @@ Phase: PR11 implemented. **Next: PR12.**
 | `explain --job` reads `admit.jsonl` | skeleton done |
 | `run --fail spine=3@…` : dead element 0 bytes | done |
 | `plan --delta delay-row=B` same engine | done |
-| I1–I10 + `parity_log_equals_counters` on all goldens | not started |
+| I1–I10 + `parity_log_equals_counters` on all goldens | done |
 | Stranger path: clone, `cargo test --workspace` | not started |
 
 ---
@@ -52,7 +52,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 9 | Failure + 2PC | 8 | §14 | `fail_spine_reroute_or_kill`, `fail_leaf_kills_single_homed`, `fail_dead_zero_bytes`, `epoch_2pc_arc_swap`; golden `spine-down` | **done** |
 | 10 | Planner + deltas | 8, 9 | §15 | `planner_same_engine`, `planner_delay_row_b` | **done** |
 | 11 | Remaining goldens | 9, 10 | §18.4 | `moe-burst`, `row-late`, `example-c` | **done** |
-| 12 | Invariants + parity | 11 | §18.2–§18.3 | I1–I10 on every golden; `cli_exit_codes`; `incast_last_flow_metric`; `parity_log_equals_counters` | not started |
+| 12 | Invariants + parity | 11 | §18.2–§18.3 | I1–I10 on every golden; `cli_exit_codes`; `incast_last_flow_metric`; `parity_log_equals_counters` | **done** |
 | 13 | As-built + README freeze | 12 | §30 PR13 | stranger path only | not started |
 
 Water-fill is **PR5**, not PR8. Fail/2PC is **PR9**. No in-place graph mutation in any PR.
@@ -102,3 +102,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR9: fail handlers, 2PC epoch, spine-down golden. Next = PR10. |
 | 2026-08-18 | PR10: plan CLI, deltas, restore scan. Next = PR11. |
 | 2026-08-19 | PR11: moe-burst, row-late, example-c goldens. Next = PR12. |
+| 2026-08-19 | PR12: I1–I10 hooks, `--strict` E_INV, parity, `cli_exit_codes`. Next = PR13. |
