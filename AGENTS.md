@@ -16,6 +16,20 @@ Read these **before writing or planning code**. Do not reconstruct the design fr
 - No packet-level sim, trainer, RL, OCS, or visual globe in v1.
 - Update `STATUS.md` in the same change that lands or abandons work.
 
+## Session loop (you code, user reviews)
+
+1. Read `STATUS.md` **Next**. Only that PR (or a parallel *crate* pair).
+2. **Parallel only when the DAG allows** (independent crates, same parent). Write in worktrees. Land **in series**: merge A, rebase B onto master, then open/update B. Never two PRs that both rewrite `Cargo.toml` / `STATUS.md` onto `master`.
+3. **Sequential** (the rest of this repo after PR3): one PR.
+4. Implement the whole slice. Do not start review mid-write.
+5. `/code-review` on that PR’s diff. Fix **block** and **should**.
+6. `/security-review` on the updated diff. Fix real findings.
+7. Push a **draft** PR. Body = Problem / Solution / Review Order / Testing (below).
+8. Reply: one sentence what landed, one sentence implication, PR link.
+9. **Stop.** Do not start the next PR until the user reviews / merges (or says continue).
+
+Agent scratch notes go in `.scratch/` (gitignored). Never commit `PR*_DONE.md`.
+
 ## PR description (always)
 
 Every GitHub PR body uses exactly these four headings. Caveman: short fragments, no filler, no restating the spec.

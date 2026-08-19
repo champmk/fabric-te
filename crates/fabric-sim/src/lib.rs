@@ -1,11 +1,15 @@
-//! Flow-level discrete-event kernel. PR1: clock + FEL only. No graph.
+//! Flow-level discrete-event kernel. FEL + residual + Clos paths.
 
 #![forbid(unsafe_code)]
 
 pub mod fel;
+pub mod paths;
+pub mod residual;
 
 pub use fabric_types::{EventKind, EventPayload, JobId, SimTime};
 pub use fel::{Event, Fel};
+pub use paths::{k_shortest, Path, PathMode};
+pub use residual::Residual;
 
 /// Mix-file seconds → picoseconds. IEEE ties-to-even on the integer picosecond.
 /// Non-finite input is rejected (NaN/Inf must not become t=0).

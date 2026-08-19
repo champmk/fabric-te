@@ -391,6 +391,80 @@ impl Graph {
         (self.leaves.len() as u64) * (self.params.up as u64) * (self.params.port_speed_gbps as u64)
             / 2
     }
+
+    pub fn gpu(&self, id: GpuId) -> Option<&Gpu> {
+        self.gpus.get(id.0 as usize).filter(|g| g.id == id)
+    }
+
+    pub fn leaf_of(&self, gpu: GpuId) -> Option<LeafId> {
+        let g = self.gpu(gpu)?;
+        Some(LeafId(
+            g.rail.0 as u32 * self.num_groups() + g.node.0 / self.params.down,
+        ))
+    }
+
+    pub fn num_groups(&self) -> u32 {
+        self.params.nodes.div_ceil(self.params.down)
+    }
+
+    /// Nic → Leaf host uplink.
+    pub fn host_up(&self, gpu: GpuId) -> Option<LinkId> {
+        let nic = NicId(gpu.0);
+        self.links
+            .iter()
+            .find(|l| l.src == Endpoint::Nic(nic) && matches!(l.dst, Endpoint::Leaf(_)))
+            .map(|l| l.id)
+    }
+
+    /// Leaf → Nic host downlink.
+    pub fn host_down(&self, gpu: GpuId) -> Option<LinkId> {
+        let nic = NicId(gpu.0);
+        self.links
+            .iter()
+            .find(|l| l.dst == Endpoint::Nic(nic) && matches!(l.src, Endpoint::Leaf(_)))
+            .map(|l| l.id)
+    }
+
+    pub fn link(&self, id: LinkId) -> Option<&Link> {
+        self.links.get(id.0 as usize).filter(|l| l.id == id)
+    }
+
+    /// Leaf→Spine cables for (leaf, spine), LinkId ascending.
+    pub fn ups_to_spine(&self, leaf: LeafId, spine: SpineId) -> Vec<LinkId> {
+        let mut v: Vec<LinkId> = self
+            .links
+            .iter()
+            .filter(|l| l.src == Endpoint::Leaf(leaf) && l.dst == Endpoint::Spine(spine))
+            .map(|l| l.id)
+            .collect();
+        v.sort_by_key(|id| id.0);
+        v
+    }
+
+    /// Spine→Leaf cables, LinkId ascending.
+    pub fn downs_from_spine(&self, spine: SpineId, leaf: LeafId) -> Vec<LinkId> {
+        let mut v: Vec<LinkId> = self
+            .links
+            .iter()
+            .filter(|l| l.src == Endpoint::Spine(spine) && l.dst == Endpoint::Leaf(leaf))
+            .map(|l| l.id)
+            .collect();
+        v.sort_by_key(|id| id.0);
+        v
+    }
+
+    pub fn common_spines(&self, sl: LeafId, dl: LeafId) -> Vec<SpineId> {
+        let mut out = Vec::new();
+        for spine in &self.spines {
+            let sid = spine.id;
+            if !self.ups_to_spine(sl, sid).is_empty() && !self.downs_from_spine(sid, dl).is_empty()
+            {
+                out.push(sid);
+            }
+        }
+        out.sort_by_key(|s| s.0);
+        out
+    }
 }
 
 pub fn default_rails() -> u32 {
