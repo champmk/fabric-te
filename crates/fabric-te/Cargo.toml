@@ -17,6 +17,7 @@ fabric-topo.workspace = true
 fabric-model.workspace = true
 fabric-ctrl.workspace = true
 fabric-report.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]

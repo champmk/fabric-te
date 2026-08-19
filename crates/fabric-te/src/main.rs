@@ -1,6 +1,7 @@
-//! clap. `topo` and `run --policy naive` are live (§16.1). `plan`/`explain` stay stubs.
+//! clap. `topo`, `run --policy naive`, and `explain` are live (§16.1). `plan` stays a stub.
 
-use std::io::{self, Write};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 
 use clap::{error::ErrorKind, Parser, Subcommand};
@@ -9,6 +10,7 @@ use fabric_model::{check_isolated, load_mix};
 use fabric_report::write_html;
 use fabric_topo::{default_rails, format_endpoint, Graph};
 use fabric_types::{Policy, ProcessExit};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 #[derive(Parser, Debug)]
@@ -61,8 +63,17 @@ enum Command {
     },
     /// What-if plan (PR10).
     Plan,
-    /// Explain an admit/reject (PR7).
-    Explain,
+    /// Explain an admit/reject from admit.jsonl (§13.6, §16.1).
+    Explain {
+        #[arg(long)]
+        run: Option<PathBuf>,
+        #[arg(long)]
+        job: Option<u32>,
+        #[arg(long)]
+        link: Option<u32>,
+        #[arg(long)]
+        fail: Option<String>,
+    },
 }
 
 fn main() {
@@ -101,10 +112,16 @@ fn dispatch(cli: Cli) -> i32 {
             out,
             strict,
         } => cmd_run(topo, mix, policy, fail, seed, out, strict),
-        Command::Plan | Command::Explain => {
+        Command::Plan => {
             let _ = writeln!(io::stderr(), "error[E_USAGE]: subcommand not implemented");
             ProcessExit::Usage as i32
         }
+        Command::Explain {
+            run,
+            job,
+            link,
+            fail,
+        } => cmd_explain(run, job, link, fail),
     }
 }
 
@@ -276,6 +293,248 @@ fn cmd_run(
         return code as i32;
     }
     ProcessExit::Ok as i32
+}
+
+const ADMIT_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const ADMIT_MAX_ROWS: usize = 50_000_000;
+
+fn cmd_explain(
+    run: Option<PathBuf>,
+    job: Option<u32>,
+    link: Option<u32>,
+    fail: Option<String>,
+) -> i32 {
+    let Some(dir) = run else {
+        let _ = writeln!(io::stderr(), "error[E_USAGE]: missing --run");
+        return ProcessExit::Usage as i32;
+    };
+    let n = usize::from(job.is_some()) + usize::from(link.is_some()) + usize::from(fail.is_some());
+    if n == 0 {
+        let _ = writeln!(
+            io::stderr(),
+            "error[E_USAGE]: missing --job, --link, or --fail"
+        );
+        return ProcessExit::Usage as i32;
+    }
+    if n > 1 {
+        let _ = writeln!(
+            io::stderr(),
+            "error[E_USAGE]: specify one of --job, --link, --fail"
+        );
+        return ProcessExit::Usage as i32;
+    }
+    match open_admit(&dir) {
+        Ok(_) => {}
+        Err((code, msg)) => {
+            let _ = writeln!(io::stderr(), "{msg}");
+            return code as i32;
+        }
+    }
+    let text = if let Some(j) = job {
+        match load_job_record(&dir, j) {
+            Ok(rec) => format_job_explain(&rec),
+            Err((code, msg)) => {
+                let _ = writeln!(io::stderr(), "{msg}");
+                return code as i32;
+            }
+        }
+    } else if link.is_some() {
+        format_link_explain()
+    } else {
+        format_fail_explain()
+    };
+    if write!(io::stdout(), "{text}").is_ok() {
+        ProcessExit::Ok as i32
+    } else {
+        let _ = writeln!(io::stderr(), "error[E_IO]: stdout write failed");
+        ProcessExit::IoAbort as i32
+    }
+}
+
+fn open_admit(dir: &Path) -> Result<File, (ProcessExit, String)> {
+    let path = dir.join("admit.jsonl");
+    let f = File::open(&path).map_err(|e| {
+        let code = if e.kind() == io::ErrorKind::InvalidData {
+            ProcessExit::BadInput
+        } else {
+            ProcessExit::IoAbort
+        };
+        let tag = if code == ProcessExit::BadInput {
+            "E_PARSE"
+        } else {
+            "E_IO"
+        };
+        (code, format!("error[{tag}]: {}: {e}", path.display()))
+    })?;
+    let meta = f.metadata().map_err(|e| {
+        (
+            ProcessExit::IoAbort,
+            format!("error[E_IO]: {}: {e}", path.display()),
+        )
+    })?;
+    if meta.len() > ADMIT_MAX_BYTES {
+        return Err((
+            ProcessExit::IoAbort,
+            format!("error[E_IO]: {}: exceeds 2 GiB", path.display()),
+        ));
+    }
+    Ok(f)
+}
+
+fn load_job_record(dir: &Path, job: u32) -> Result<Value, (ProcessExit, String)> {
+    let f = open_admit(dir)?;
+    let reader = BufReader::new(f);
+    let mut found = None;
+    let mut rows = 0usize;
+    for line in reader.lines() {
+        let line = line.map_err(|e| (ProcessExit::IoAbort, format!("error[E_IO]: {e}")))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        rows += 1;
+        if rows > ADMIT_MAX_ROWS {
+            return Err((
+                ProcessExit::IoAbort,
+                "error[E_IO]: admit.jsonl exceeds 50e6 rows".into(),
+            ));
+        }
+        let Ok(v) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if job_id_of(&v) == Some(job) {
+            found = Some(v);
+        }
+    }
+    found.ok_or_else(|| {
+        (
+            ProcessExit::BadInput,
+            format!("error[E_PARSE]: job {job} not in admit.jsonl"),
+        )
+    })
+}
+
+fn job_id_of(v: &Value) -> Option<u32> {
+    match v.get("job_id") {
+        Some(Value::Number(n)) => n.as_u64().and_then(|x| u32::try_from(x).ok()),
+        Some(Value::String(s)) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+fn format_job_explain(rec: &Value) -> String {
+    let mut out = String::new();
+    push_kv(&mut out, "job_id", scalar(rec.get("job_id")));
+    push_kv(&mut out, "policy", scalar(rec.get("policy")));
+    push_kv(&mut out, "decision", scalar(rec.get("decision")));
+    push_kv(&mut out, "reject", scalar(rec.get("reject")));
+    push_kv(
+        &mut out,
+        "free_at_arrive",
+        scalar(rec.get("free_at_arrive")),
+    );
+    push_kv(
+        &mut out,
+        "bindings_evaluated",
+        scalar(rec.get("bindings_evaluated")),
+    );
+    push_list(&mut out, "per_binding[]", rec.get("per_binding"));
+    push_obj(&mut out, "chosen", rec.get("chosen"));
+    push_list(&mut out, "per_link[]", rec.get("per_link"));
+    push_list(&mut out, "waterfill[]", rec.get("waterfill"));
+    push_kv(&mut out, "B_eff_Bps", scalar(rec.get("B_eff_Bps")));
+    push_kv(&mut out, "T_pred_ps", scalar(rec.get("T_pred_ps")));
+    push_kv(&mut out, "D_j_ps", scalar(rec.get("D_j_ps")));
+    push_obj(&mut out, "naive_compare", rec.get("naive_compare"));
+    out
+}
+
+fn format_link_explain() -> String {
+    // Placeholders until PR8/PR9 traces carry live leftover. §13.6
+    let mut out = String::new();
+    for k in [
+        "c",
+        "scratch",
+        "cir",
+        "r_avail",
+        "failed",
+        "flows now",
+        "hotspot_us",
+    ] {
+        push_kv(&mut out, k, "-");
+    }
+    out
+}
+
+fn format_fail_explain() -> String {
+    // Placeholders until PR9 2PC. §13.6
+    let mut out = String::new();
+    push_kv(&mut out, "epoch", "0");
+    push_kv(&mut out, "jobs rerouted", "0");
+    push_kv(&mut out, "jobs killed", "0");
+    push_kv(&mut out, "T_pred before/after", "-");
+    out
+}
+
+fn push_kv(out: &mut String, k: &str, v: impl AsRef<str>) {
+    out.push_str(k);
+    out.push_str(": ");
+    out.push_str(v.as_ref());
+    out.push('\n');
+}
+
+fn push_list(out: &mut String, k: &str, v: Option<&Value>) {
+    out.push_str(k);
+    out.push_str(":\n");
+    out.push_str(&indent_block(&pretty_or_empty(v)));
+    out.push('\n');
+}
+
+fn push_obj(out: &mut String, k: &str, v: Option<&Value>) {
+    out.push_str(k);
+    out.push_str(":\n");
+    match v {
+        None | Some(Value::Null) => {
+            out.push_str("  -\n");
+        }
+        Some(val) => {
+            out.push_str(&indent_block(&pretty_value(val)));
+            out.push('\n');
+        }
+    }
+}
+
+fn scalar(v: Option<&Value>) -> String {
+    match v {
+        None | Some(Value::Null) => "-".into(),
+        Some(Value::String(s)) if s.is_empty() => "-".into(),
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Bool(b)) => b.to_string(),
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Array(_)) | Some(Value::Object(_)) => "-".into(),
+    }
+}
+
+fn pretty_or_empty(v: Option<&Value>) -> String {
+    match v {
+        Some(a @ Value::Array(_)) => pretty_value(a),
+        _ => "[]".into(),
+    }
+}
+
+fn pretty_value(v: &Value) -> String {
+    serde_json::to_string_pretty(v).unwrap_or_else(|_| "-".into())
+}
+
+fn indent_block(s: &str) -> String {
+    let mut out = String::new();
+    for (i, line) in s.lines().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str("  ");
+        out.push_str(line);
+    }
+    out
 }
 
 fn builtin_gpus(name: &str) -> Option<u32> {

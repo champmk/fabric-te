@@ -2,9 +2,9 @@
 
 Last updated: 2026-08-18  
 Repo name: **fabric-te**  
-Phase: PR6 implemented. **Next: PR7.**
+Phase: PR7 implemented. **Next: PR8.**
 
-**Next:** PR7 — bindings + `explain` skeleton.
+**Next:** PR8 — joint evaluate + Example C.
 
 ## How to use this file
 
@@ -12,11 +12,11 @@ Phase: PR6 implemented. **Next: PR7.**
 - Add/remove rows when the spec’s PR plan changes. This list is allowed to drift; the spec wins if they disagree — then sync this file.
 - After any session that writes code or changes the plan, update **Next**, the PR table, and **Session notes**.
 
-## Read for next (PR7)
+## Read for next (PR8)
 
-`docs/DESIGN.md` §13.1–§13.2, §13.6, §30 PR7.
+`docs/DESIGN.md` §13.3–§13.5, §8.6, §30 PR8.
 
-Do **not** implement joint evaluate, 2PC, planner, or I1–I10 CI.
+Do **not** reimplement water-fill. Fail/2PC is PR9. Planner is PR10.
 
 ---
 
@@ -29,7 +29,7 @@ Do **not** implement joint evaluate, 2PC, planner, or I1–I10 CI.
 | Git repo exists | done |
 | `topo --gpus 256 --dump` matches Example A | done |
 | `run --policy naive` + `run --policy joint` on default-mix | naive done; joint PR8 |
-| `explain --job` reads `admit.jsonl` | not started |
+| `explain --job` reads `admit.jsonl` | skeleton done |
 | `run --fail spine=3@…` : dead element 0 bytes | not started |
 | `plan --delta delay-row=B` same engine | not started |
 | I1–I10 + `parity_log_equals_counters` on all goldens | not started |
@@ -49,7 +49,7 @@ Status: `done` | `in progress` | `blocked` | `not started` | `dropped`
 | 4 | Residual + k-shortest / ECMP | 2, 3 | §11.1–§11.3 | `joint_kshortest_k8`, `joint_cost_inverse_residual`, `naive_ecmp_tiebreak_lowest_linkid` | **done** |
 | 5 | Naive admit + water-fill | 4 | §11.4, §12 | `naive_scan_order_node_then_rank`, `naive_admit_gpu_count_only`, `compute_before_first_collective`, `joint_waterfill_maxmin` | **done** |
 | 6 | Traces, report, `run`, naive golden | 5 | §9.7–§9.9, §16 | `replay_seed_deterministic`; golden `empty-cluster`; `default-mix-512` naive report | **done** |
-| 7 | Bindings + `explain` skeleton | 6 | §13.1–§13.2, §13.6 | `joint_k16_bound` | not started |
+| 7 | Bindings + `explain` skeleton | 6 | §13.1–§13.2, §13.6 | `joint_k16_bound` | **done** |
 | 8 | Joint evaluate + Example C | 5, 7 | §13.3–§13.5, §8.6 | `joint_reject_zero_leftover`, `joint_admit_cheapest_feasible`, `naive_may_overadmit`, `simultaneous_fifo_admit`, `scratch_not_used_by_jobs` | not started |
 | 9 | Failure + 2PC | 8 | §14 | `fail_spine_reroute_or_kill`, `fail_leaf_kills_single_homed`, `fail_dead_zero_bytes`, `epoch_2pc_arc_swap`; golden `spine-down` | not started |
 | 10 | Planner + deltas | 8, 9 | §15 | `planner_same_engine`, `planner_delay_row_b` | not started |
@@ -99,3 +99,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-18 | PR4: Residual + Clos k-shortest (zip, k=8). Joint skips r_avail=0. Next = PR5. |
 | 2026-08-18 | PR5 water-fill + naive admit. Next = PR6. |
 | 2026-08-18 | PR6: run loop, parquet traces, naive goldens. Next = PR7. |
+| 2026-08-18 | PR7: `generate_bindings` K≤16 + `explain` skeleton. Next = PR8. |
