@@ -4,3 +4,4 @@
 .vscode/
 .scratch/
 **/out-pr6-*/
+/out-*/

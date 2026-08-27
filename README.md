@@ -1,12 +1,19 @@
 # fabric-te
 
-Flow-level DES plus naive and joint placement / path admission for a
-**terrestrial** GPU-training fabric. One CLI. Static B&W `report.html`.
-No TUI. No packet-level sim. No satellite / LEO / space-network content.
+Training jobs miss their deadline on a cluster that still has free GPUs,
+because the cables those jobs need are already full. This repo is a
+laptop-scale, deterministic flow-level simulator of that network, plus two
+controllers: **naive** packs free GPUs; **joint** looks at leftover
+bandwidth first. Naive is allowed to admit jobs that then miss. Joint is
+not.
+
+One CLI (`topo` `run` `plan` `explain`). Tables, not a canvas. The
+operator artifact is `report.html` / `report.json`. A read-only inspector
+of three locked examples lives in [`viz/index.html`](viz/index.html) — it
+is not a second simulator.
 
 Spec lock: [`docs/DESIGN.md`](docs/DESIGN.md).  
-What shipped vs that lock: [`docs/ASBUILT.md`](docs/ASBUILT.md).  
-Agents / new sessions: `AGENTS.md`, then `STATUS.md`.
+What shipped vs that lock: [`docs/ASBUILT.md`](docs/ASBUILT.md).
 
 Requires **rustc 1.78** (`rust-toolchain.toml`).
 
@@ -85,3 +92,17 @@ Under `fixtures/golden/`. `cargo test --workspace` is the suite.
 | `example-c` | `n64` | joint admits J1 `RailRotate{1}`, rejects J2 `ZeroLeftover`; naive over-admits |
 
 v1 is complete. No next PR.
+
+## Inspector
+
+Open `viz/index.html`. Tabs A / B / C walk the map, the ring stopwatch,
+and leftover-aware admit. On C, naive / joint. It plays the goldens. It
+does not run the engine.
+
+## Non-goals (v1)
+
+No TUI. No packet-level sim. No trainer, RL, MILP, or OCS.
+
+## Working on this repo
+
+New sessions: `AGENTS.md`, then `STATUS.md`.

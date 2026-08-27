@@ -1,6 +1,6 @@
 # fabric-te status
 
-Last updated: 2026-08-19  
+Last updated: 2026-08-27  
 Repo name: **fabric-te**  
 Phase: **PR13 done. Next = none. v1 complete.**
 
@@ -75,7 +75,7 @@ Water-fill is **PR5**, not PR8. Fail/2PC is **PR9**. No in-place graph mutation 
 
 Only add here if we explicitly defer. Do not implement from this list without a spec addendum.
 
-- [ ] Read-only visual / inspector (post-PR6 traces exist)
+- [x] Read-only visual / inspector (post-PR6 traces exist) — `viz/index.html` plays Example C goldens; not a second sim
 - [ ] `inspect` TUI
 - [ ] MILP flag, OCS, tree AllReduce, PXN, packet-level
 
@@ -104,3 +104,4 @@ Only add here if we explicitly defer. Do not implement from this list without a 
 | 2026-08-19 | PR11: moe-burst, row-late, example-c goldens. Next = PR12. |
 | 2026-08-19 | PR12: I1–I10 hooks, `--strict` E_INV, parity, `cli_exit_codes`. Next = PR13. |
 | 2026-08-19 | PR13: README + ASBUILT freeze. Next = none. v1 complete. |
+| 2026-08-27 | Inspector committed (`viz/index.html`). README lead is the product. `/out-*/` gitignored. Next = none. |
