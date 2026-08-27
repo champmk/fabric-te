@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Examples A B C</title>
+  <style>
+    html, body { margin: 0; background: #fff; color: #111; }
+    body {
+      font: 13px/1.4 system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    canvas { display: block; }
+    .page { width: 1000px; }
+    h1 {
+      font: 16px/1.3 system-ui, sans-serif;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 0.15rem 0.8rem;
+      margin: 0 0 0.7rem;
+    }
+    dt { margin: 0; }
+    dd { margin: 0; }
+    p { margin: 0 0 0.55rem; }
+    .copy { display: none; }
+    .copy.on { display: block; }
+    .tabs, nav {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.35rem 0 0.45rem;
+    }
+    .tabs { border-bottom: 1px solid #111; margin-bottom: 0.7rem; }
+    nav { border-top: 1px solid #111; }
+    button {
+      font: inherit;
+      background: #fff;
+      border: 1px solid #111;
+      padding: 0.2rem 0.55rem;
+      cursor: pointer;
+    }
+    button.on { background: #111; color: #fff; }
+    nav span { color: #444; }
+    #c-only { display: none; gap: 0.75rem; }
+    #c-only.on { display: flex; }
+    #step { margin: 0 0 0.5rem; min-height: 1.4em; }
+    @media print {
+      .tabs, nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="tabs">
+      <button type="button" id="tab-A">A map</button>
+      <button type="button" id="tab-B">B ring</button>
+      <button type="button" id="tab-C" class="on">C leftover</button>
+    </div>
+
+    <div id="copy-A" class="copy">
+      <h1>Example A</h1>
+      <p>Closed-form Clos for 32 nodes × 8 GPUs = 256 GPUs. This is the map. No jobs.</p>
+      <dl>
+        <dt>node</dt>
+        <dd>One server. Eight GPUs, eight NICs, eight cables — one cable per rail.</dd>
+        <dt>rail</dt>
+        <dd>Plane r. Every node’s GPU r plugs into the leaf for rail r. Same-rail traffic can stay on one leaf.</dd>
+        <dt>leaf</dt>
+        <dd>Top-of-rack switch. Here N = D = 32, so there is one leaf per rail: L = 8.</dd>
+        <dt>spine</dt>
+        <dd>Next switch layer. S = 4. Needed only when a hop changes leaf (usually a different rail).</dd>
+        <dt>host cable</dt>
+        <dd>GPU NIC → its leaf. E_host = 256 directed links (32 × 8).</dd>
+      </dl>
+      <p>L = 8, S = 4, E_host = 256, E_ls = 256, B_bisect = 51 200 Gbps. Same-rail DP on this size never hits a spine.</p>
+      <p>prev / next steps leaves → one node → same-rail hop → counts.</p>
+    </div>
+
+    <div id="copy-B" class="copy">
+      <h1>Example B</h1>
+      <p>One ring AllReduce stopwatch. p = 8 GPUs, M = 64 MiB, B_eff = 50 GB/s, α = 1 µs. No leftover, no Clos admit.</p>
+      <dl>
+        <dt>rank</dt>
+        <dd>One GPU in the ring, labeled 0…7. Each already has a copy of the weights.</dd>
+        <dt>chunk</dt>
+        <dd>M / p of the gradient buffer. The ring sends slices, not the whole 64 MiB at once.</dd>
+        <dt>hop</dt>
+        <dd>Rank i sends one chunk to i+1. One AllReduce is 2(p−1) = 14 hops of that (reduce-scatter then allgather).</dd>
+        <dt>α</dt>
+        <dd>Per-hop latency, 1 µs. Fourteen hops → 14 µs.</dd>
+        <dt>βM</dt>
+        <dd>Time to push bytes at 50 GB/s. β = 20 ps/B. Bandwidth term 1.75 · M / B = 2348.810 µs.</dd>
+      </dl>
+      <p>T = 14 µs + 2348.810 µs = 2362.810 µs (golden 2 362 810 240 ps). prev / next: ring → slices → hops → T.</p>
+    </div>
+
+    <div id="copy-C" class="copy on">
+      <h1>Example C</h1>
+      <p>Two 8-GPU ring jobs. Deadline for one collective is 3000 µs. Every rail-0 leaf–spine cable already has leftover 0.</p>
+      <dl>
+        <dt>GPU</dt>
+        <dd>One chip (board, memory stacks, edge connector). Filled = job 1. Hatched = job 2. X = joint does not place there.</dd>
+        <dt>leaf</dt>
+        <dd>Top-of-rack switch. r0 is hot (leftover 0). r1 is cool (47.5 GB/s). Same-leaf hops do not use spines.</dd>
+        <dt>spine</dt>
+        <dd>Fabric switch. The horizontal line is the leaf–spine bus. Crossing rails must use it.</dd>
+        <dt>naive</dt>
+        <dd>First free GPUs, hop-count path. Ignores leftover and the deadline. May admit and still miss the SLO.</dd>
+        <dt>joint</dt>
+        <dd>Ranks leftover-aware paths. If leftover on the path is 0, reject (ZeroLeftover). Does not use scratch.</dd>
+      </dl>
+      <p>Naive admits both jobs onto mixed rails; both miss the SLO. Joint admits job 1 on leaf r1 (2486 µs) and rejects job 2.</p>
+      <p>naive / joint chooses the controller. prev / next (or arrow keys) steps idle → J1 → collective → J2.</p>
+    </div>
+
+    <nav>
+      <span id="c-only">
+        <button type="button" id="naive" class="on">naive</button>
+        <button type="button" id="joint">joint</button>
+      </span>
+      <button type="button" id="prev">prev</button>
+      <button type="button" id="next">next</button>
+      <span id="label"></span>
+    </nav>
+    <p id="step"></p>
+    <canvas id="c" width="1000" height="620"></canvas>
+  </div>
+  <script>
+(function () {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+
+  const GPU_W = 26;
+  const GPU_H = 20;
+  const LEAF_H = 36;
+  const SPINE_W = 52;
+  const SPINE_H = 28;
+
+  const FRAMES = {
+    A: ["leaves", "one-node", "same-rail", "counts"],
+    B: ["ring", "slices", "hops", "T"],
+    C: ["idle", "J1", "collective", "J2"],
+  };
+  const STEPS = {
+    A: {
+      leaves: "Leaves: eight rail switches (r0…r7) under four spines. L = 8, S = 4.",
+      "one-node": "One node: eight GPUs, each rail’s GPU plugs into that rail’s leaf. E_host = 32 × 8 = 256.",
+      "same-rail": "Same rail, two nodes: both GPUs hit leaf r0, so the hop never uses a spine (N = D = 32).",
+      counts: "Counts: E_ls = 256, B_bisect = 51 200 Gbps. This is what topo --gpus 256 --dump prints.",
+    },
+    B: {
+      ring: "Ring: eight ranks. Each already has the weights; AllReduce will sum gradients.",
+      slices: "Slices: each 64 MiB buffer is split into p = 8 chunks. A hop sends one chunk, not the whole buffer.",
+      hops: "Hops: every rank i sends to i+1 at once. Reduce-scatter then allgather is 14 such phases.",
+      T: "T = 14 × 1 µs + 1.75 × 64 MiB / 50 GB/s = 2362.810 µs.",
+    },
+    C: {
+      naive: {
+        idle: "Idle: no job is bound; eight GPUs sit under hot leaf r0 and eight under cool leaf r1.",
+        J1: "J1: naive first-fit takes the first eight free GPUs, mixing both rails, and admits.",
+        collective: "Collective: the ring’s four fabric hops cross to leaf r0 (leftover 0). Four hops stay on the same node and never hit the fabric.",
+        J2: "J2: naive admits job 2 on the rest of the free set; both jobs miss the 3000 µs SLO.",
+      },
+      joint: {
+        idle: "Idle: same empty working set; joint will score leftover, not just free GPU count.",
+        J1: "J1: joint places all eight GPUs on cool leaf r1 (RailRotate{1}) and admits.",
+        collective: "Collective: every hop stays on leaf r1 (host-only); T is 2486 µs and meets the deadline.",
+        J2: "J2: joint rejects job 2 (ZeroLeftover): free GPUs remain on r0, but leftover on those paths is 0.",
+      },
+    },
+  };
+
+  const state = { ex: "C", policy: "naive", frame: 0 };
+  let packT = 0;
+
+  function vline(x, y1, y2) {
+    ctx.beginPath();
+    ctx.moveTo(x, y1);
+    ctx.lineTo(x, y2);
+    ctx.stroke();
+  }
+  function hline(x1, x2, y) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+  }
+  function hatch(x, y, w, h) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1;
+    for (let d = -h; d < w + h; d += 4) {
+      ctx.beginPath();
+      ctx.moveTo(x + d, y);
+      ctx.lineTo(x + d + h, y + h);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawSwitch(x, y, w, h, title, portsBottom) {
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.fill();
+    ctx.stroke();
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const px = x + (w * (i + 1)) / (n + 1);
+      const py = portsBottom ? y + h : y;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, py + (portsBottom ? 4 : -4));
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#111";
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(title, x + w / 2, y + h / 2);
+  }
+  function drawGpuAt(x, y, owner, tag) {
+    const x0 = x - GPU_W / 2;
+    const y0 = y - GPU_H / 2;
+    ctx.lineWidth = 1.25;
+    ctx.strokeStyle = "#111";
+    ctx.fillStyle = owner === 1 ? "#111" : "#fff";
+    ctx.beginPath();
+    ctx.rect(x0, y0, GPU_W, GPU_H);
+    ctx.fill();
+    ctx.stroke();
+    if (owner === 2) hatch(x0, y0, GPU_W, GPU_H);
+    ctx.fillStyle = owner === 1 ? "#111" : "#fff";
+    ctx.strokeRect(x0 + 3, y0 - 5, 8, 5);
+    ctx.strokeRect(x0 + 15, y0 - 5, 8, 5);
+    if (owner === 1) {
+      ctx.fillRect(x0 + 3, y0 - 5, 8, 5);
+      ctx.fillRect(x0 + 15, y0 - 5, 8, 5);
+    }
+    ctx.beginPath();
+    ctx.moveTo(x0 + 4, y0 + GPU_H);
+    ctx.lineTo(x0 + 4, y0 + GPU_H + 4);
+    ctx.moveTo(x0 + GPU_W / 2, y0 + GPU_H);
+    ctx.lineTo(x0 + GPU_W / 2, y0 + GPU_H + 4);
+    ctx.moveTo(x0 + GPU_W - 4, y0 + GPU_H);
+    ctx.lineTo(x0 + GPU_W - 4, y0 + GPU_H + 4);
+    ctx.stroke();
+    ctx.font = "9px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if (owner === 1) {
+      ctx.fillStyle = "#fff";
+      ctx.fillText(tag || "J1", x, y);
+    } else if (owner === 2) {
+      ctx.fillStyle = "#111";
+      ctx.fillText(tag || "J2", x, y);
+    } else if (tag) {
+      ctx.fillStyle = "#111";
+      ctx.fillText(tag, x, y);
+    }
+  }
+  function drawPacket(p) {
+    ctx.fillStyle = "#111";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function along(points, u) {
+    const segs = [];
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i];
+      const b = points[i + 1];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      segs.push({ a, b, len });
+      total += len;
+    }
+    let d = u * total;
+    for (const s of segs) {
+      if (d <= s.len) {
+        const t = s.len === 0 ? 0 : d / s.len;
+        return {
+          x: s.a.x + (s.b.x - s.a.x) * t,
+          y: s.a.y + (s.b.y - s.a.y) * t,
+        };
+      }
+      d -= s.len;
+    }
+    return points[points.length - 1];
+  }
+
+  /* ——— A ——— */
+  const A_LEAF_Y = 230;
+  const A_GPU_Y = 470;
+  const A_BUS_Y = 70;
+  const A_LEAVES = [];
+  for (let r = 0; r < 8; r++) {
+    const w = 88;
+    const x = 92 + r * 110;
+    A_LEAVES.push({ r: r, x: x, w: w, cx: x + w / 2 });
+  }
+  const A_SPINE = [190, 400, 610, 820];
+
+  function drawA() {
+    const f = FRAMES.A[state.frame];
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1;
+    hline(A_LEAVES[0].cx, A_LEAVES[7].cx, A_BUS_Y);
+    for (let i = 0; i < 8; i++) {
+      vline(A_LEAVES[i].cx, A_LEAF_Y, A_BUS_Y);
+    }
+    for (let i = 0; i < 4; i++) {
+      drawSwitch(A_SPINE[i] - SPINE_W / 2, A_BUS_Y - SPINE_H / 2, SPINE_W, SPINE_H, "S" + i, false);
+    }
+    for (let i = 0; i < 8; i++) {
+      const L = A_LEAVES[i];
+      drawSwitch(L.x, A_LEAF_Y, L.w, LEAF_H, "r" + i, true);
+    }
+    if (f === "one-node" || f === "counts") {
+      for (let r = 0; r < 8; r++) {
+        const x = A_LEAVES[r].cx;
+        vline(x, A_LEAF_Y + LEAF_H, A_GPU_Y - GPU_H / 2 - 5);
+        drawGpuAt(x, A_GPU_Y, f === "one-node" ? 1 : 0, "r" + r);
+      }
+    }
+    if (f === "same-rail") {
+      const L = A_LEAVES[0];
+      const x0 = L.cx - 18;
+      const x1 = L.cx + 18;
+      vline(x0, A_LEAF_Y + LEAF_H, A_GPU_Y - GPU_H / 2 - 5);
+      vline(x1, A_LEAF_Y + LEAF_H, A_GPU_Y - GPU_H / 2 - 5);
+      drawGpuAt(x0, A_GPU_Y, 1, "n0");
+      drawGpuAt(x1, A_GPU_Y, 1, "n1");
+      const u = packT % 1;
+      drawPacket(along(
+        [
+          { x: x0, y: A_GPU_Y - GPU_H / 2 - 5 },
+          { x: x0, y: A_LEAF_Y + LEAF_H },
+          { x: x1, y: A_LEAF_Y + LEAF_H },
+          { x: x1, y: A_GPU_Y - GPU_H / 2 - 5 },
+        ],
+        u
+      ));
+    }
+    if (f === "counts") {
+      ctx.fillStyle = "#111";
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("N=32   L=8   S=4   E_host=256   E_ls=256   B_bisect=51200 Gbps", 92, 560);
+    }
+  }
+
+  /* ——— B ——— */
+  function ringPos(i) {
+    const ang = -Math.PI / 2 + (i * Math.PI) / 4;
+    return { x: 500 + 190 * Math.cos(ang), y: 300 + 190 * Math.sin(ang) };
+  }
+  function drawB() {
+    const f = FRAMES.B[state.frame];
+    const pts = [];
+    for (let i = 0; i < 8; i++) pts.push(ringPos(i));
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % 8];
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 8; i++) {
+      drawGpuAt(pts[i].x, pts[i].y, 1, String(i));
+      if (f === "slices" || f === "hops" || f === "T") {
+        const p = pts[i];
+        const dx = (p.x - 500) / 190;
+        const dy = (p.y - 300) / 190;
+        for (let k = 0; k < 8; k++) {
+          ctx.strokeRect(p.x + dx * 28 - 10 + k * 3, p.y + dy * 28 - 6, 3, 8);
+        }
+      }
+    }
+    if (f === "hops") {
+      for (let i = 0; i < 8; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % 8];
+        const u = (packT + i / 8) % 1;
+        drawPacket(along([a, b], u));
+      }
+    }
+    if (f === "T") {
+      ctx.fillStyle = "#111";
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("T = 2362.810 µs", 500, 300);
+    }
+  }
+
+  /* ——— C (unchanged geometry) ——— */
+  const PITCH = 40;
+  const LEAF_Y = 230;
+  const GPU_Y = 470;
+  const BUS_Y = 70;
+  const N_GPU = 8;
+  const LEAF0 = { x: 140, w: N_GPU * PITCH };
+  const LEAF1 = { x: 540, w: N_GPU * PITCH };
+  const BUS = { x0: 140, x1: 540 + N_GPU * PITCH };
+  function leafCenter(leaf) { return leaf.x + leaf.w / 2; }
+  function gpuX(leaf, i) { return leaf.x + PITCH / 2 + i * PITCH; }
+  function spineX(i) { return [190, 400, 610, 820][i]; }
+  function portY() { return LEAF_Y + LEAF_H; }
+
+  const H = [];
+  const Cset = [];
+  for (let i = 0; i < N_GPU; i++) {
+    H.push({ leaf: LEAF0, i: i, id: "n" + [0, 1, 2, 3, 32, 33, 34, 35][i] + "r0" });
+    Cset.push({ leaf: LEAF1, i: i, id: "n" + i + "r1" });
+  }
+  const NAIVE_J1 = new Set(["n0r0", "n1r0", "n2r0", "n3r0", "n0r1", "n1r1", "n2r1", "n3r1"]);
+  const NAIVE_J2 = new Set(["n32r0", "n33r0", "n34r0", "n35r0", "n4r1", "n5r1", "n6r1", "n7r1"]);
+  const JOINT_J1 = new Set(Cset.map(function (g) { return g.id; }));
+
+  function owner(id) {
+    const f = FRAMES.C[state.frame];
+    if (f === "idle") return 0;
+    if (state.policy === "joint") return JOINT_J1.has(id) ? 1 : 0;
+    if (NAIVE_J1.has(id)) return 1;
+    if (NAIVE_J2.has(id) && f === "J2") return 2;
+    return 0;
+  }
+  function pathPoints(srcLeaf, srcI, dstLeaf, dstI) {
+    const sx = gpuX(srcLeaf, srcI);
+    const dx = gpuX(dstLeaf, dstI);
+    const sy = GPU_Y - GPU_H / 2 - 5;
+    const py = portY();
+    const sc = leafCenter(srcLeaf);
+    const dc = leafCenter(dstLeaf);
+    if (srcLeaf === dstLeaf) {
+      return [
+        { x: sx, y: sy }, { x: sx, y: py }, { x: dx, y: py }, { x: dx, y: sy },
+      ];
+    }
+    return [
+      { x: sx, y: sy }, { x: sx, y: py }, { x: sc, y: py }, { x: sc, y: LEAF_Y },
+      { x: sc, y: BUS_Y }, { x: dc, y: BUS_Y }, { x: dc, y: LEAF_Y }, { x: dc, y: py },
+      { x: dx, y: py }, { x: dx, y: sy },
+    ];
+  }
+  function drawC() {
+    const f = FRAMES.C[state.frame];
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < N_GPU; i++) {
+      vline(gpuX(LEAF0, i), portY(), GPU_Y - GPU_H / 2 - 5);
+      vline(gpuX(LEAF1, i), portY(), GPU_Y - GPU_H / 2 - 5);
+    }
+    vline(leafCenter(LEAF0), LEAF_Y, BUS_Y);
+    vline(leafCenter(LEAF1), LEAF_Y, BUS_Y);
+    hline(BUS.x0, BUS.x1, BUS_Y);
+    for (let i = 0; i < 4; i++) {
+      const x = spineX(i);
+      drawSwitch(x - SPINE_W / 2, BUS_Y - SPINE_H / 2, SPINE_W, SPINE_H, "S" + i, false);
+    }
+    drawSwitch(LEAF0.x, LEAF_Y, LEAF0.w, LEAF_H, "leaf r0", true);
+    drawSwitch(LEAF1.x, LEAF_Y, LEAF1.w, LEAF_H, "leaf r1", true);
+    H.forEach(function (g) {
+      drawGpuAt(gpuX(g.leaf, g.i), GPU_Y, owner(g.id), owner(g.id) === 1 ? "J1" : owner(g.id) === 2 ? "J2" : "");
+    });
+    Cset.forEach(function (g) {
+      drawGpuAt(gpuX(g.leaf, g.i), GPU_Y, owner(g.id), owner(g.id) === 1 ? "J1" : owner(g.id) === 2 ? "J2" : "");
+    });
+    if (state.policy === "joint" && f === "J2") {
+      H.forEach(function (g) {
+        const x = gpuX(g.leaf, g.i);
+        const y = GPU_Y;
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.moveTo(x - 8, y - 8);
+        ctx.lineTo(x + 8, y + 8);
+        ctx.moveTo(x + 8, y - 8);
+        ctx.lineTo(x - 8, y + 8);
+        ctx.stroke();
+      });
+    }
+    if (f === "collective") {
+      const pairs = state.policy === "joint"
+        ? [0, 1, 2, 3, 4, 5, 6, 7].map(function (i) { return [LEAF1, i, LEAF1, (i + 1) % 8]; })
+        : [[LEAF1, 0, LEAF0, 1], [LEAF1, 1, LEAF0, 2], [LEAF1, 2, LEAF0, 3], [LEAF1, 3, LEAF0, 0]];
+      pairs.forEach(function (p, k) {
+        drawPacket(along(pathPoints(p[0], p[1], p[2], p[3]), (packT + k / pairs.length) % 1));
+      });
+    }
+  }
+
+  function caption() {
+    const f = FRAMES[state.ex][state.frame];
+    document.getElementById("label").textContent = f;
+    const block = STEPS[state.ex];
+    const text = state.ex === "C" ? block[state.policy][f] : block[f];
+    document.getElementById("step").textContent = text;
+  }
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (state.ex === "A") drawA();
+    else if (state.ex === "B") drawB();
+    else drawC();
+    caption();
+  }
+  function render() {
+    packT += 0.008;
+    draw();
+    requestAnimationFrame(render);
+  }
+
+  function setEx(ex) {
+    state.ex = ex;
+    state.frame = 0;
+    document.getElementById("tab-A").classList.toggle("on", ex === "A");
+    document.getElementById("tab-B").classList.toggle("on", ex === "B");
+    document.getElementById("tab-C").classList.toggle("on", ex === "C");
+    document.getElementById("copy-A").classList.toggle("on", ex === "A");
+    document.getElementById("copy-B").classList.toggle("on", ex === "B");
+    document.getElementById("copy-C").classList.toggle("on", ex === "C");
+    document.getElementById("c-only").classList.toggle("on", ex === "C");
+  }
+  function syncPolicy() {
+    document.getElementById("naive").classList.toggle("on", state.policy === "naive");
+    document.getElementById("joint").classList.toggle("on", state.policy === "joint");
+  }
+  document.getElementById("tab-A").onclick = function () { setEx("A"); };
+  document.getElementById("tab-B").onclick = function () { setEx("B"); };
+  document.getElementById("tab-C").onclick = function () { setEx("C"); };
+  document.getElementById("naive").onclick = function () { state.policy = "naive"; syncPolicy(); };
+  document.getElementById("joint").onclick = function () { state.policy = "joint"; syncPolicy(); };
+  document.getElementById("prev").onclick = function () {
+    const n = FRAMES[state.ex].length;
+    state.frame = (state.frame + n - 1) % n;
+  };
+  document.getElementById("next").onclick = function () {
+    const n = FRAMES[state.ex].length;
+    state.frame = (state.frame + 1) % n;
+  };
+  window.addEventListener("keydown", function (e) {
+    const n = FRAMES[state.ex].length;
+    if (e.key === "ArrowRight") state.frame = (state.frame + 1) % n;
+    if (e.key === "ArrowLeft") state.frame = (state.frame + n - 1) % n;
+    if (e.key === "1") setEx("A");
+    if (e.key === "2") setEx("B");
+    if (e.key === "3") setEx("C");
+  });
+
+  setEx("C");
+  document.getElementById("c-only").classList.add("on");
+  render();
+})();
+  </script>
+</body>
+</html>
